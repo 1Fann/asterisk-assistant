@@ -1,0 +1,71 @@
+name: Build, verify and release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check shell, backend behavior and prepared APK
+        run: |
+          for file in assets/runtime/*.sh; do sh -n "$file"; done
+          python3 check-backend.py assets/runtime
+          python3 tools/verify_release.py
+
+  android:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK components
+        shell: pwsh
+        run: sdkmanager 'platforms;android-35' 'build-tools;36.0.0'
+      - name: Build APK with a disposable CI signing key
+        shell: pwsh
+        run: ./build.ps1 -SdkRoot $env:ANDROID_HOME -JavaHome $env:JAVA_HOME
+      - name: Confirm private files are absent from Git
+        shell: pwsh
+        run: |
+          $unexpected = @(git ls-files -- private out '*.jks' '*.keystore' '*.password' '*pjsip.conf' '*accounts.json')
+          if ($unexpected.Count) { throw 'Unexpected private files in Git' }
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Publish the verified locally signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 tools/verify_release.py
+          version=$(python3 -c 'import xml.etree.ElementTree as E; print(E.parse("AndroidManifest.xml").getroot().attrib["{http://schemas.android.com/apk/res/android}versionName"])')
+          tag="v$version"
+          apk=".work/release/Asterisk-Assistant-$version.apk"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Release already exists; leaving the published assets unchanged.'
+            exit 0
+          fi
+          gh release create "$tag" "$apk" .work/release/SHA256SUMS \
+            --target "$GITHUB_SHA" --title "Asterisk Assistant $tag" \
+            --notes-file "releases/$tag/NOTES.md"

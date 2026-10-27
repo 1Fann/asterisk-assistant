@@ -1,0 +1,9 @@
+private/
+out/
+*.jks
+*.keystore
+*.password
+local.properties
+__pycache__/
+*.pyc
+.work/
