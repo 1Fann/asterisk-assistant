@@ -1,0 +1,11 @@
+{
+  "version": "1.1.1",
+  "name": "Asterisk-Assistant-1.1.1.apk",
+  "encoding": "base64",
+  "parts": [
+    "Asterisk-Assistant-1.1.1.apk.b64"
+  ],
+  "input": "Asterisk-Assistant-1.1.1.apk.b64",
+  "size": 58839,
+  "sha256": "2185d4937debdbe1c69e4a83d615379b0d98b0249fe91a9801bcad8ddfff53ef"
+}

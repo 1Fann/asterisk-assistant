@@ -2,7 +2,7 @@
 
 [English](README.en.md) · [下载 APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-在已 Root 的 ARM64 Android 手机上，一键部署并可视化管理 Asterisk SIP 服务器。当前版本 **1.1.0**。这是社区原创管理 App，使用 Ubuntu 软件源的 Asterisk，未修改服务器核心源码。无需 Termux。
+在已 Root 的 ARM64 Android 手机上，一键部署并可视化管理 Asterisk SIP 服务器。当前版本 **1.1.1**。这是社区原创管理 App，使用 Ubuntu 软件源的 Asterisk，未修改服务器核心源码。无需 Termux。
 
 - 一键下载安装经校验的运行环境；启动、停止、重启。
 - SIP 账号、密码、连接状态、端口、拨号配置和备份管理。
@@ -38,3 +38,16 @@ Windows、JDK21、Android SDK35、Build Tools36.0.0：
 ## 验证与许可证
 
 见 [VALIDATION.md](VALIDATION.md)、[第三方说明](NOTICE.md)。管理代码 MIT；Asterisk、Ubuntu 保留各自许可证。Release 附件包含本地签名 APK 和 SHA256SUMS，签名私钥不上传 CI。
+
+## 公网 IPv6 / DDNS（1.1.1）
+
+部署后打开“公网 IPv6 / DDNS 域名”，填入你自己的完整域名并开启。原 DDNS 服务继续管理 AAAA；Cloudflare 使用“仅 DNS”。客户端的域名不加端口，SIP 代理填 `sip:phone.example.com:端口`，UDP，原用户名、认证 ID 和密码保留。
+
+- 将管理的客户端账号切换到非临时 Wi-Fi 公网 IPv6，SIP 和 RTP 使用同一地址；本机网关继续使用 IPv4 回环。
+- 公网模式下客户端需要 IPv6；原 IPv4 客户端应改用域名。关闭公网模式后恢复局域网客户端设置。
+- 自动检查跟踪 IPv6 变化，空闲时重启更新监听及语音地址；没有可用公网 IPv6 时回退局域网，待地址恢复再更新。保持自动检查开启。
+- 服务持有 Wi-Fi 组播接收锁，以兼容部分 ROM 的息屏 IPv6 寻址。会增加耗电；关闭公网模式、停止服务或进程退出时释放。
+- 自检支持 IPv6 账号认证及 RTP 回声；不会自动拨打真实蜂窝电话。沿途防火墙需允许界面显示的 SIP UDP 和 RTP 端口，不会自动修改路由器。
+- 当前预设使用 UDP，未配置 SIP TLS 或媒体加密。管理页面、账号密码和配置仅保存在本机。
+
+本次设备验证：公网蜂窝网络域名登录及回声由用户确认；短时息屏的跨设备 SIP 和 ICMPv6 通过。长期深度休眠、重启及完整双卡公网通话仍需实测。

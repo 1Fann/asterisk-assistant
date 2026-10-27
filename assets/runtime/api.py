@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -94,7 +95,34 @@ def status():
             'autostart':len(sys.argv)>3 and sys.argv[3]=='1',
             'legacyCleaned':len(sys.argv)>4 and sys.argv[4]=='1',
             'migrationPending':(S/'import-check/pjsip.conf').exists(),
-            'selfTestPassed':(S/'selftest-passed').exists()}
+            'selfTestPassed':(S/'selftest-passed').exists(),
+            'publicIpv6':public_ipv6(), 'ipv6':read_ipv6()}
+
+def public_ipv6():
+    path=S/'public-ipv6.json'
+    return json.loads(path.read_text()) if path.exists() else {'enabled':False,'domain':''}
+
+def read_ipv6():
+    path=S/'lan-ipv6'
+    value=path.read_text().strip() if path.exists() else ''
+    try:
+        address=ipaddress.IPv6Address(value)
+        return str(address) if address in ipaddress.IPv6Network('2000::/3') else ''
+    except ValueError:return ''
+
+def set_public_ipv6(data):
+    if active_calls():raise ValueError('当前存在通话，请挂断后修改网络设置')
+    enabled=data.get('enabled');domain=data.get('domain','').strip().lower().rstrip('.')
+    if not isinstance(enabled,bool):raise ValueError('网络开关无效')
+    if domain and (len(domain)>253 or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?',p) for p in domain.split('.'))):
+        raise ValueError('请填写完整域名，不含 sip:、端口或路径')
+    if enabled and (not domain or '.' not in domain):raise ValueError('请填写 DDNS 完整域名')
+    if enabled and not read_ipv6():raise ValueError('Wi-Fi 暂无唯一可用的非临时公网 IPv6')
+    backup=S/'before-public-ipv6.conf'
+    if not backup.exists():write(backup,(C/'pjsip.conf').read_text())
+    write(S/'public-ipv6.json',json.dumps({'enabled':enabled,'domain':domain}))
+    network()
+    return {'ok':True,'message':'IPv6 / DDNS 设置已保存，需重启服务生效'}
 
 def network():
     ip=(S/'lan-ip').read_text().strip()
@@ -110,6 +138,18 @@ def network():
         for s in sections:
             if s['fields'].get('media_address')==old_ip:
                 s['body']=field(s['body'],'media_address',ip)
+    public=public_ipv6();ipv6=read_ipv6();enabled=public['enabled'] and bool(ipv6)
+    # Managed public clients use IPv6 for both signaling and RTP; the local gateway stays IPv4.
+    if public['enabled'] or any(s['name']=='transport-public-ipv6' for s in sections):
+        port=ports()['lanPort']
+        sections=[s for s in sections if s['name']!='transport-public-ipv6']
+        for s in sections:
+            f=s['fields']
+            if f.get('type')=='endpoint' and f.get('transport') in ('transport-lan','transport-public-ipv6'):
+                for key,value in {'transport':'transport-public-ipv6' if enabled else 'transport-lan',
+                    'media_address':ipv6 if enabled else ip,'bind_rtp_to_media_address':'yes',
+                    'rtp_ipv6':'yes' if enabled else 'no'}.items():s['body']=field(s['body'],key,value)
+        if enabled:sections.append({'header':'\n[transport-public-ipv6]\n','body':f'type=transport\nprotocol=udp\nbind=[{ipv6}]:{port}\n'})
     updated=prefix+''.join(s['header']+s['body'] for s in sections)
     if updated!=text:write(C/'pjsip.conf',updated)
     return {'ok':True}
@@ -121,6 +161,8 @@ def reload_config():
 def account_blocks(user,password,role,ip):
     gateway=role=='gateway'; transport='transport-loopback' if gateway else 'transport-lan'
     context='app-gateway' if gateway else 'app-users'; address='127.0.0.1' if gateway else ip
+    ipv6=read_ipv6() if public_ipv6()['enabled'] and not gateway else ''
+    if ipv6:transport='transport-public-ipv6';address=ipv6
     return f'''
 [{user}]
 type=endpoint
@@ -136,6 +178,7 @@ force_rport=yes
 rewrite_contact=yes
 media_address={address}
 bind_rtp_to_media_address=yes
+rtp_ipv6={'yes' if ipv6 else 'no'}
 allow_subscribe=no
 dtmf_mode=rfc4733
 
@@ -234,6 +277,7 @@ def main(action,data):
     if action=='save_account':return save_account(data)
     if action=='delete_account':return delete_account(data)
     if action=='set_ports':return set_ports(data)
+    if action=='set_public_ipv6':return set_public_ipv6(data)
     if action=='network':return network()
     if action=='read_file':return {'ok':True,'content':config_path(data).read_text()}
     if action=='save_file':
@@ -252,7 +296,8 @@ def main(action,data):
     if action=='selftest':
         import selftest
         p=ports(); credentials={u:r['password'] for u,r in auth_records().items()}
-        result=selftest.run(credentials,(S/'lan-ip').read_text().strip(),p['lanPort'],p['localPort'])
+        host=read_ipv6() if public_ipv6()['enabled'] else ''
+        result=selftest.run(credentials,host or (S/'lan-ip').read_text().strip(),p['lanPort'],p['localPort'])
         (S/'selftest-passed').touch()
         return {'ok':True,**result}
     raise ValueError('未知操作')
@@ -260,7 +305,7 @@ def main(action,data):
 if __name__=='__main__':
     try:
         action=sys.argv[1] if len(sys.argv)>1 else 'status'
-        data=json.loads(sys.stdin.read() or '{}') if action in {'credentials','save_account','delete_account','read_file','save_file','restore_file','set_ports'} else {}
+        data=json.loads(sys.stdin.read() or '{}') if action in {'credentials','save_account','delete_account','read_file','save_file','restore_file','set_ports','set_public_ipv6'} else {}
         result=main(action,data)
         print(json.dumps(result,ensure_ascii=False))
     except Exception as error:

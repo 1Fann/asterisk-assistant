@@ -30,7 +30,7 @@ final class RootBridge {
  }
  static JSONObject parse(String value){String[] lines=value.split("\n");for(int i=lines.length-1;i>=0;i--){try{return new JSONObject(lines[i]);}catch(Exception ignored){}}return null;}
  static JSONObject api(String action,JSONObject data)throws Exception{
-  if(!action.matches("status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|selftest|migration_verify"))throw new IOException("无效操作");
+  if(!action.matches("status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|set_public_ipv6|selftest|migration_verify"))throw new IOException("无效操作");
   JSONObject result=parse(run(BASE+"/control.sh "+(action.equals("status")?"status":"api "+action),data,60));
   if(result==null)throw new IOException("服务器未返回有效状态");
   if(!result.optBoolean("ok"))throw new IOException(result.optString("error","操作失败"));

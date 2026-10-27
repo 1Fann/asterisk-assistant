@@ -12,8 +12,10 @@ def md5(value):
 class Client:
     def __init__(self, user, host, target_port):
         self.user, self.host = user, host
+        self.ipv6 = ':' in host
+        self.uri_host = '['+host+']' if self.ipv6 else host
         self.target_port = target_port
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = socket.socket(socket.AF_INET6 if self.ipv6 else socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((host, 0))
         self.port = self.sock.getsockname()[1]
         self.callid = secrets.token_hex(12) + '@pbx-test'
@@ -25,13 +27,13 @@ class Client:
             self.seq += 1
             seq = self.seq
         packet = (f'{method} {uri} SIP/2.0\r\n'
-                  f'Via: SIP/2.0/UDP {self.host}:{self.port};branch=z9hG4bK{secrets.token_hex(8)};rport\r\n'
+                  f'Via: SIP/2.0/UDP {self.uri_host}:{self.port};branch=z9hG4bK{secrets.token_hex(8)};rport\r\n'
                   f'Max-Forwards: 70\r\n'
-                  f'From: <sip:{self.user}@{self.host}>;tag={self.tag}\r\n'
-                  f'To: {to or f"<sip:{self.user}@{self.host}>"}\r\n'
+                  f'From: <sip:{self.user}@{self.uri_host}>;tag={self.tag}\r\n'
+                  f'To: {to or f"<sip:{self.user}@{self.uri_host}>"}\r\n'
                   f'Call-ID: {self.callid}\r\n'
                   f'CSeq: {seq} {method}\r\n'
-                  f'Contact: <sip:{self.user}@{self.host}:{self.port}>\r\n'
+                  f'Contact: <sip:{self.user}@{self.uri_host}:{self.port}>\r\n'
                   f'{auth}{extra}'
                   f'{"Content-Type: application/sdp" + chr(13) + chr(10) if body else ""}'
                   f'Content-Length: {len(body.encode())}\r\n\r\n{body}')
@@ -67,7 +69,7 @@ class Client:
         return f'Authorization: Digest {value}, response="{digest}", algorithm=MD5\r\n'
 
     def register(self, password, expires=120):
-        uri = f'sip:{self.host}:{self.target_port}'
+        uri = f'sip:{self.uri_host}:{self.target_port}'
         extra = f'Expires: {expires}\r\n'
         self.send('REGISTER', uri, extra=extra)
         response = self.response('REGISTER')
@@ -76,13 +78,14 @@ class Client:
         return self.response('REGISTER').split()[1]
 
     def echo(self):
-        rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        rtp = socket.socket(socket.AF_INET6 if self.ipv6 else socket.AF_INET, socket.SOCK_DGRAM)
         rtp.bind((self.host, 0))
-        uri = f'sip:600@{self.host}:{self.target_port}'
-        sdp = (f'v=0\r\no=test 1 1 IN IP4 {self.host}\r\ns=LAN RTP self-test\r\n'
-               f'c=IN IP4 {self.host}\r\nt=0 0\r\nm=audio {rtp.getsockname()[1]} RTP/AVP 0\r\n'
+        uri = f'sip:600@{self.uri_host}:{self.target_port}'
+        family='IP6' if self.ipv6 else 'IP4'
+        sdp = (f'v=0\r\no=test 1 1 IN {family} {self.host}\r\ns=RTP self-test\r\n'
+               f'c=IN {family} {self.host}\r\nt=0 0\r\nm=audio {rtp.getsockname()[1]} RTP/AVP 0\r\n'
                'a=rtpmap:0 PCMU/8000\r\na=sendrecv\r\n')
-        to = f'<sip:600@{self.host}>'
+        to = f'<sip:600@{self.uri_host}>'
         self.send('INVITE', uri, body=sdp, to=to)
         response = self.response('INVITE')
         if response.split()[1] == '401':
@@ -93,7 +96,7 @@ class Client:
         to = re.search(r'^To: (.+)\r', response, re.M|re.I).group(1)
         remote_uri = re.search(r'^Contact: <([^>]+)>', response, re.M|re.I).group(1)
         self.send('ACK', remote_uri, to=to, seq=self.seq)
-        address = re.search(r'^c=IN IP4 (\S+)', response, re.M).group(1)
+        address = re.search(r'^c=IN '+family+r' (\S+)', response, re.M).group(1)
         port = int(re.search(r'^m=audio (\d+)', response, re.M).group(1))
         payload = bytes(range(160))
         returned = 0
@@ -122,8 +125,8 @@ def run(credentials,lan,lan_port,local_port):
         if user not in credentials:
             continue
         client=Client(user,host,port)
-        uri=f'sip:600@{host}:{port}'
-        target=f'<sip:600@{host}>'
+        uri=f'sip:600@{client.uri_host}:{port}'
+        target=f'<sip:600@{client.uri_host}>'
         client.send('OPTIONS',uri,to=target)
         challenge=client.response('OPTIONS')
         assert challenge.split()[1]=='401','Expected authentication challenge'

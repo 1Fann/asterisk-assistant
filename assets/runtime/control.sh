@@ -12,6 +12,13 @@ running() {
   tr '\000' ' ' < "/proc/$PBX_PID/cmdline" | "$BB" grep -q '/usr/sbin/asterisk -f -C /etc/asterisk/asterisk.conf'
 }
 case "${1:-status}" in
+  ipv6) exec /system/bin/sh "$BASE/ipv6.sh";;
+  network-state)
+    /system/bin/sh "$BASE/ipv6.sh" > "$R/etc/asterisk-app/lan-ipv6.tmp"
+    chmod 640 "$R/etc/asterisk-app/lan-ipv6.tmp"
+    chown 0:3003 "$R/etc/asterisk-app/lan-ipv6.tmp"
+    mv "$R/etc/asterisk-app/lan-ipv6.tmp" "$R/etc/asterisk-app/lan-ipv6"
+    ;;
   state) if running; then echo running; else echo stopped; fi;;
   start)
     [ -f "$BASE/installed" ] || { echo not_installed; exit 1; }
@@ -22,6 +29,7 @@ case "${1:-status}" in
       IP=$(ip -4 -o addr show wlan0 | "$BB" awk '{split($4,a,"/"); print a[1]; exit}')
       [ -n "$IP" ] || { echo wifi_not_ready; exit 1; }
       printf '%s\n' "$IP" > "$R/etc/asterisk-app/lan-ip"
+      "$BASE/control.sh" network-state
       "$BASE/enter.sh" /usr/bin/python3 /opt/asterisk-app/api.py network >/dev/null
       "$BB" setsid "$BASE/enter.sh" /bin/sh /opt/asterisk-app/run.sh </dev/null >"$BASE/console.log" 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
       sleep 3
@@ -44,7 +52,7 @@ case "${1:-status}" in
   cli) shift; exec "$BASE/enter.sh" /usr/sbin/asterisk -rx "$*";;
   api)
     shift
-    case "${1:-status}" in status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|network|initialize|migration_verify|selftest) ;; *) echo invalid_action; exit 1;; esac
+    case "${1:-status}" in status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|set_public_ipv6|network|initialize|migration_verify|selftest) ;; *) echo invalid_action; exit 1;; esac
     LEGACY=0; [ -d /data/adb/sip-pbx ] && LEGACY=1
     AUTO=$(cat "$BASE/autostart" 2>/dev/null || echo 0)
     CLEANED=0; [ -f "$BASE/legacy-cleaned" ] && CLEANED=1

@@ -3,6 +3,7 @@ package com.fann.asterisk;
 import android.app.*;
 import android.content.*;
 import android.os.*;
+import android.net.wifi.WifiManager;
 import java.io.*;
 import java.net.*;
 import javax.net.ssl.HttpsURLConnection;
@@ -16,6 +17,16 @@ public class ManagerService extends Service {
  static final String SHA="a91d5a93010193712d346d761372b7c9db6dfcf093893161c64ca107f05914f2";
  final java.util.concurrent.ExecutorService worker=Executors.newSingleThreadExecutor();
  PowerManager.WakeLock wake;
+ WifiManager.MulticastLock multicast;
+ void multicast(boolean enabled){
+  if(multicast==null){WifiManager wifi=getApplicationContext().getSystemService(WifiManager.class);if(wifi==null)return;multicast=wifi.createMulticastLock("asterisk:ipv6-neighbor");multicast.setReferenceCounted(false);}
+  if(enabled&&!multicast.isHeld())multicast.acquire();
+  if(!enabled&&multicast.isHeld())multicast.release();
+ }
+ void syncNetworkLock()throws Exception{
+  JSONObject s=RootBridge.api("status",null),p=s.optJSONObject("publicIpv6");
+  multicast(s.optBoolean("running")&&p!=null&&p.optBoolean("enabled"));
+ }
  public void onCreate(){super.onCreate();NotificationManager manager=getSystemService(NotificationManager.class);manager.createNotificationChannel(new NotificationChannel("server","SIP 服务器",NotificationManager.IMPORTANCE_LOW));notice("服务器管理已启动");}
  void notice(String text){Intent intent=new Intent(this,MainActivity.class);PendingIntent pending=PendingIntent.getActivity(this,0,intent,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);Notification n=new Notification.Builder(this,"server").setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle("Asterisk 助手").setContentText(text).setContentIntent(pending).setOngoing(true).build();startForeground(10,n);}
  void report(String text){message=text;getSharedPreferences("app",0).edit().putString("message",text).apply();notice(text);}
@@ -50,7 +61,7 @@ public class ManagerService extends Service {
     RootBridge.run(RootBridge.BASE+"/control.sh "+(task.equals("START")?"start":"restart"),null,65);report("服务器运行中");
    }else throw new IOException("未知操作");
   }catch(Exception error){report(error.getMessage()==null?"操作失败，请刷新查看":error.getMessage());}
-  finally{busy=false;if(!task.equals("STOP"))awake(getSharedPreferences("app",0).getBoolean("awake",false));}});
+  finally{busy=false;if(task.equals("STOP"))multicast(false);else{awake(getSharedPreferences("app",0).getBoolean("awake",false));try{syncNetworkLock();}catch(Exception e){report("IPv6 Wi-Fi 接收锁未就绪，请刷新并重启服务");}}}});
   return START_STICKY;
  }
  File download()throws Exception{
@@ -65,6 +76,6 @@ public class ManagerService extends Service {
   if(target.exists()&&!target.delete())throw new IOException("无法更新下载文件");if(!partial.renameTo(target))throw new IOException("无法保存下载文件");return target;
  }
  String digest(File file)throws Exception{MessageDigest d=MessageDigest.getInstance("SHA-256");try(InputStream in=new FileInputStream(file)){byte[] b=new byte[65536];int n;while((n=in.read(b))!=-1)d.update(b,0,n);}StringBuilder s=new StringBuilder();for(byte b:d.digest())s.append(String.format("%02x",b&255));return s.toString();}
- public void onDestroy(){awake(false);worker.shutdown();super.onDestroy();}
+ public void onDestroy(){awake(false);multicast(false);worker.shutdown();super.onDestroy();}
  public IBinder onBind(Intent intent){return null;}
 }

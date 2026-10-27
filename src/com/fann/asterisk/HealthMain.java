@@ -50,19 +50,32 @@ public final class HealthMain {
   if(!snapshot.optBoolean("running")){message="服务器启动尚未完成，下轮重试";return;}
   int port=snapshot.getJSONObject("ports").getInt("localPort");
   String address=snapshot.optString("ip");boolean changed=!address.isEmpty()&&!ip.contains(" "+address+"/");
-  if(changed||(!sipAlive(port)&&!sipAlive(port))){
+  JSONObject publicNetwork=snapshot.optJSONObject("publicIpv6");
+  String publicAddress="";int publicPort=snapshot.getJSONObject("ports").getInt("lanPort");
+  if(publicNetwork!=null&&publicNetwork.optBoolean("enabled")){
+   String current6=RootBridge.run(BASE+"/control.sh ipv6",null,8);
+   publicAddress=current6;
+   changed|=!current6.equals(snapshot.optString("ipv6"));
+  }
+  if(changed||(!sipAlive(port)&&!sipAlive(port))||(!publicAddress.isEmpty()&&!sipAlive(publicAddress,publicPort))){
    guard();phase="server_restart";RootBridge.run(BASE+"/control.sh restart",null,40);repaired=true;
   }
   owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
-  boolean ok=RootBridge.run(BASE+"/control.sh state",null,8).equals("running")&&owner.contains("isForeground=true")&&sipAlive(port);
+  boolean ok=RootBridge.run(BASE+"/control.sh state",null,8).equals("running")&&owner.contains("isForeground=true")&&sipAlive(port)&&(publicAddress.isEmpty()||sipAlive(publicAddress,publicPort));
   message=ok?(repaired?"已恢复 Asterisk，后台网络与 SIP 响应正常":"Asterisk、后台网络服务与 SIP 响应正常"):"服务器恢复尚未完成，下轮重试";
  }
  static boolean sipAlive(int port){
+  return sipAlive("127.0.0.1",port);
+ }
+ static boolean sipAlive(String host,int port){
   if(port<1024||port>65535)return false;
   try(DatagramSocket socket=new DatagramSocket()){
+   socket.connect(InetAddress.getByName(host),port);
+   String target=host.contains(":")?"["+host+"]":host;
+   String local=socket.getLocalAddress().getHostAddress();if(local.contains(":"))local="["+local+"]";
    socket.setSoTimeout(2000);String id=UUID.randomUUID().toString();
-   String request="OPTIONS sip:health@127.0.0.1:"+port+" SIP/2.0\r\nVia: SIP/2.0/UDP 127.0.0.1:"+socket.getLocalPort()+";branch=z9hG4bK"+id+";rport\r\nFrom: <sip:health@localhost>;tag="+id+"\r\nTo: <sip:health@localhost>\r\nCall-ID: "+id+"\r\nCSeq: 1 OPTIONS\r\nMax-Forwards: 0\r\nContent-Length: 0\r\n\r\n";
-   byte[] b=request.getBytes(StandardCharsets.US_ASCII);socket.send(new DatagramPacket(b,b.length,InetAddress.getByName("127.0.0.1"),port));
+   String request="OPTIONS sip:health@"+target+":"+port+" SIP/2.0\r\nVia: SIP/2.0/UDP "+local+":"+socket.getLocalPort()+";branch=z9hG4bK"+id+";rport\r\nFrom: <sip:health@localhost>;tag="+id+"\r\nTo: <sip:health@localhost>\r\nCall-ID: "+id+"\r\nCSeq: 1 OPTIONS\r\nMax-Forwards: 0\r\nContent-Length: 0\r\n\r\n";
+   byte[] b=request.getBytes(StandardCharsets.US_ASCII);socket.send(new DatagramPacket(b,b.length,InetAddress.getByName(host),port));
    byte[] out=new byte[8192];DatagramPacket packet=new DatagramPacket(out,out.length);socket.receive(packet);
    String reply=new String(out,0,packet.getLength(),StandardCharsets.US_ASCII);return reply.startsWith("SIP/2.0 ")&&reply.contains("Call-ID: "+id);
   }catch(Exception e){return false;}
