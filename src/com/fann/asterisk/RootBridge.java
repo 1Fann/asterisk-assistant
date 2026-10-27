@@ -7,8 +7,9 @@ import org.json.JSONObject;
 
 final class RootBridge {
  static final String BASE="/data/adb/asterisk-app";
+ static final String CERT="b7f7a97088b3860cfbdd1935e82a5409151fdac10057f5c22138091395f8b26d";
  static synchronized String run(String command, JSONObject input, int seconds) throws Exception {
-  Process p=new ProcessBuilder("su","-M","-c",command).redirectErrorStream(true).start();
+  Process p=(android.os.Process.myUid()==0?new ProcessBuilder("/system/bin/sh","-c",command):new ProcessBuilder("su","-M","-c",command)).redirectErrorStream(true).start();
   ByteArrayOutputStream out=new ByteArrayOutputStream();
   Thread reader=new Thread(()->{try{byte[] b=new byte[8192];int n;while((n=p.getInputStream().read(b))!=-1){if(out.size()<1048576)out.write(b,0,n);}}catch(Exception ignored){}});
   reader.start();
@@ -36,12 +37,37 @@ final class RootBridge {
   return result;
  }
  static void stage(Context context)throws Exception{
+  verifySelf(context);String apkHash=hash(new File(context.getApplicationInfo().sourceDir));
   File directory=new File(context.getFilesDir(),"runtime");directory.mkdirs();
   for(String name:context.getAssets().list("runtime")){
+   if(!name.matches("[a-z0-9][a-z0-9-]*\\.(sh|py)"))continue;
    try(InputStream in=context.getAssets().open("runtime/"+name);OutputStream out=new FileOutputStream(new File(directory,name))){byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}
   }
   String source=directory.getAbsolutePath();
   String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; cp "+source+"/* "+BASE+"/; chmod 700 "+BASE+"/*.sh; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh; chmod 700 /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; cp "+BASE+"/*.py "+BASE+"/run.sh "+BASE+"/rootfs/opt/asterisk-app/; fi; echo ready";
   run(command,null,30);
+  run("umask 077; printf '%s\\n' "+apkHash+" > "+BASE+"/health-helper.sha256",null,10);
+ }
+ static void verifySelf(Context c)throws Exception{
+  android.content.pm.PackageInfo p=c.getPackageManager().getPackageInfo("com.fann.asterisk",android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);
+  if(p.signingInfo==null||p.signingInfo.hasMultipleSigners())throw new IOException("助手签名校验失败");
+  boolean ok=false;for(android.content.pm.Signature s:p.signingInfo.getApkContentsSigners())if(hex(java.security.MessageDigest.getInstance("SHA-256").digest(s.toByteArray())).equals(CERT))ok=true;
+  if(!ok)throw new IOException("助手签名校验失败");
+ }
+ static String hex(byte[] b){StringBuilder s=new StringBuilder();for(byte v:b)s.append(String.format(java.util.Locale.ROOT,"%02x",v&255));return s.toString();}
+ static String hash(File f)throws Exception{java.security.MessageDigest d=java.security.MessageDigest.getInstance("SHA-256");try(InputStream in=new FileInputStream(f)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)d.update(b,0,n);}return hex(d.digest());}
+ static void healthConfigure(Context c,boolean on,int minutes)throws Exception{
+  HealthPolicy.minutes(Integer.toString(minutes));stage(c);
+  run("set -eu; umask 077; printf '%s\\n' "+minutes+" > "+BASE+"/health-minutes.tmp; mv "+BASE+"/health-minutes.tmp "+BASE+"/health-minutes; "+(on?"touch "+BASE+"/health-enabled "+BASE+"/health-now":"rm -f "+BASE+"/health-enabled "+BASE+"/health-now"),null,10);
+  if(on)healthLaunch();
+ }
+ static void healthLaunch()throws Exception{run("/data/adb/ksu/bin/busybox setsid /system/bin/sh "+BASE+"/health.sh loop </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &",null,10);}
+ static void healthNow(Context c)throws Exception{
+  stage(c);if(!run("test -f "+BASE+"/health-enabled && echo on || true",null,5).equals("on"))throw new IOException("请先开启自动检查与恢复");
+  run("touch "+BASE+"/health-now",null,5);healthLaunch();
+ }
+ static JSONObject healthStatus()throws Exception{
+  String[] lines=run("if [ -f "+BASE+"/health-enabled ]; then echo on; else echo off; fi; cat "+BASE+"/health-minutes 2>/dev/null || echo 5; cat "+BASE+"/health-status.json 2>/dev/null || true",null,8).split("\\n",3);
+  JSONObject result=lines.length>2?new JSONObject(lines[2]):new JSONObject();result.put("enabled",lines[0].equals("on"));result.put("minutes",HealthPolicy.minutes(lines[1].trim()));return result;
  }
 }

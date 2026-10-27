@@ -1,0 +1,75 @@
+package com.fann.asterisk;
+import android.content.Context;
+import android.os.Looper;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import org.json.JSONObject;
+/** Server-only health and recovery. Never starts or changes the cellular gateway. */
+public final class HealthMain {
+ static final String BASE=RootBridge.BASE;
+ static String message="检查尚未完成",phase="initialize",error="";static boolean repaired;
+ static Context context;
+ static boolean enabled(){return new File(BASE,"health-enabled").isFile();}
+ static boolean wanted(){return new File(BASE,"installed").isFile()&&!new File(BASE,"disabled").exists();}
+ static boolean idle()throws Exception{
+  boolean running=RootBridge.run(BASE+"/control.sh state",null,8).equals("running");
+  String channels=running?RootBridge.run(BASE+"/control.sh cli core show channels count",null,10):"0 active calls\n";
+  return HealthPolicy.idle(RootBridge.run("dumpsys telephony.registry",null,12),channels,true);
+ }
+ static void guard()throws Exception{if(!enabled()||!wanted()||!idle())throw new IOException("paused_or_busy");}
+ public static void main(String[] args){
+  if(android.os.Process.myUid()!=0)throw new SecurityException();
+  try{
+   Looper.prepareMainLooper();Class<?> at=Class.forName("android.app.ActivityThread");Object thread=at.getMethod("systemMain").invoke(null);
+   Context system=(Context)at.getMethod("getSystemContext").invoke(thread);
+   context=system.createPackageContext("com.fann.asterisk",Context.CONTEXT_INCLUDE_CODE|Context.CONTEXT_IGNORE_SECURITY);
+   RootBridge.verifySelf(context);if(!enabled())return;
+   check();
+  }catch(Exception e){error=e.getClass().getSimpleName();if(e.getStackTrace().length>0){StackTraceElement f=e.getStackTrace()[0];error+=":"+f.getMethodName()+":"+f.getLineNumber();}message="服务器检查或恢复未完成，下轮重试";}
+  finally{save();}
+ }
+ static void check()throws Exception{
+  phase="server_check";
+  if(!new File(BASE,"installed").isFile()){message="尚未部署 Asterisk";return;}
+  if(!wanted()){message="服务器已手动停止，暂停自动恢复";return;}
+  if(!idle()){message="正在通话或无法确认通话状态，本轮跳过恢复";return;}
+  String ip=RootBridge.run("ip -4 -o addr show wlan0",null,8);
+  if(ip.isEmpty()){message="等待 Wi-Fi，本轮不重启服务器";return;}
+  String owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
+  boolean running=RootBridge.run(BASE+"/control.sh state",null,10).equals("running");
+  if(!running||!owner.contains("isForeground=true")){
+   guard();RootBridge.run("am start-foreground-service -n com.fann.asterisk/.ManagerService --es action START",null,15);repaired=true;Thread.sleep(4000);
+   owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
+   if(!owner.contains("isForeground=true")){
+    guard();RootBridge.run("am start -n com.fann.asterisk/.MainActivity",null,15);Thread.sleep(2000);
+   }
+  }
+  JSONObject snapshot=new JSONObject(RootBridge.run(BASE+"/control.sh status",null,15));
+  if(!snapshot.optBoolean("running")){message="服务器启动尚未完成，下轮重试";return;}
+  int port=snapshot.getJSONObject("ports").getInt("localPort");
+  String address=snapshot.optString("ip");boolean changed=!address.isEmpty()&&!ip.contains(" "+address+"/");
+  if(changed||(!sipAlive(port)&&!sipAlive(port))){
+   guard();phase="server_restart";RootBridge.run(BASE+"/control.sh restart",null,40);repaired=true;
+  }
+  owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
+  boolean ok=RootBridge.run(BASE+"/control.sh state",null,8).equals("running")&&owner.contains("isForeground=true")&&sipAlive(port);
+  message=ok?(repaired?"已恢复 Asterisk，后台网络与 SIP 响应正常":"Asterisk、后台网络服务与 SIP 响应正常"):"服务器恢复尚未完成，下轮重试";
+ }
+ static boolean sipAlive(int port){
+  if(port<1024||port>65535)return false;
+  try(DatagramSocket socket=new DatagramSocket()){
+   socket.setSoTimeout(2000);String id=UUID.randomUUID().toString();
+   String request="OPTIONS sip:health@127.0.0.1:"+port+" SIP/2.0\r\nVia: SIP/2.0/UDP 127.0.0.1:"+socket.getLocalPort()+";branch=z9hG4bK"+id+";rport\r\nFrom: <sip:health@localhost>;tag="+id+"\r\nTo: <sip:health@localhost>\r\nCall-ID: "+id+"\r\nCSeq: 1 OPTIONS\r\nMax-Forwards: 0\r\nContent-Length: 0\r\n\r\n";
+   byte[] b=request.getBytes(StandardCharsets.US_ASCII);socket.send(new DatagramPacket(b,b.length,InetAddress.getByName("127.0.0.1"),port));
+   byte[] out=new byte[8192];DatagramPacket packet=new DatagramPacket(out,out.length);socket.receive(packet);
+   String reply=new String(out,0,packet.getLength(),StandardCharsets.US_ASCII);return reply.startsWith("SIP/2.0 ")&&reply.contains("Call-ID: "+id);
+  }catch(Exception e){return false;}
+ }
+ static void save(){try{
+  JSONObject j=new JSONObject();j.put("checkedAt",System.currentTimeMillis());j.put("message",message);j.put("repaired",repaired);j.put("phase",phase);j.put("error",error);
+  File temp=new File(BASE,"health-status.tmp");try(FileOutputStream out=new FileOutputStream(temp)){out.write(j.toString().getBytes(StandardCharsets.UTF_8));}
+  if(!temp.renameTo(new File(BASE,"health-status.json")))temp.delete();
+ }catch(Exception ignored){}}
+}

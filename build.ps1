@@ -39,13 +39,17 @@ try {
     if($LASTEXITCODE){throw 'DEX compilation failed'}
     & (Join-Path $javaBin 'jar.exe') -uf (Join-Path $output 'unsigned.apk') -C $dex classes.dex
     if($LASTEXITCODE){throw 'DEX packaging failed'}
-    & (Join-Path $javaBin 'jar.exe') -uf (Join-Path $output 'unsigned.apk') -C $PSScriptRoot assets
+    $assetStage=Join-Path $output ('runtime-assets-'+[Guid]::NewGuid().ToString('N'))
+    $runtimeStage=Join-Path $assetStage 'assets\runtime'
+    New-Item -ItemType Directory -Force -Path $runtimeStage | Out-Null
+    Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'assets\runtime') -File | Where-Object {$_.Extension -in '.sh','.py'} | Copy-Item -Destination $runtimeStage
+    & (Join-Path $javaBin 'jar.exe') -uf (Join-Path $output 'unsigned.apk') -C $assetStage assets
     if($LASTEXITCODE){throw 'Runtime asset packaging failed'}
     & (Join-Path $buildTools 'zipalign.exe') -f 4 (Join-Path $output 'unsigned.apk') (Join-Path $output 'aligned.apk')
     if($LASTEXITCODE){throw 'APK alignment failed'}
-    & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias asterisk-manager --ks-pass env:ASTERISK_SIGNING_PASSWORD --key-pass env:ASTERISK_SIGNING_PASSWORD --out (Join-Path $output 'Asterisk-Assistant-1.0.0.apk') (Join-Path $output 'aligned.apk')
+    & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias asterisk-manager --ks-pass env:ASTERISK_SIGNING_PASSWORD --key-pass env:ASTERISK_SIGNING_PASSWORD --out (Join-Path $output 'Asterisk-Assistant-1.1.0.apk') (Join-Path $output 'aligned.apk')
     if($LASTEXITCODE){throw 'APK signing failed'}
-    & (Join-Path $buildTools 'apksigner.bat') verify (Join-Path $output 'Asterisk-Assistant-1.0.0.apk')
+    & (Join-Path $buildTools 'apksigner.bat') verify (Join-Path $output 'Asterisk-Assistant-1.1.0.apk')
     if($LASTEXITCODE){throw 'APK verification failed'}
-    & (Join-Path $buildTools 'aapt2.exe') dump permissions (Join-Path $output 'Asterisk-Assistant-1.0.0.apk')
+    & (Join-Path $buildTools 'aapt2.exe') dump permissions (Join-Path $output 'Asterisk-Assistant-1.1.0.apk')
 }finally{Remove-Item Env:ASTERISK_SIGNING_PASSWORD -ErrorAction SilentlyContinue}

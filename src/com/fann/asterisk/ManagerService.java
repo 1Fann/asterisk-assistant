@@ -23,6 +23,8 @@ public class ManagerService extends Service {
  public int onStartCommand(Intent intent,int flags,int startId){
   String action=intent==null?"BOOT":intent.getStringExtra("action");if(action==null)action="BOOT";
   final String task=action;
+  final boolean healthEnabled=intent!=null&&intent.getBooleanExtra("healthEnabled",false);
+  final String healthMinutes=intent==null?null:intent.getStringExtra("healthMinutes");
   if(task.equals("WAKE")){awake(getSharedPreferences("app",0).getBoolean("awake",false));return START_STICKY;}
   if(busy){message="正在处理上一项操作";return START_STICKY;}
   busy=true;
@@ -38,6 +40,8 @@ public class ManagerService extends Service {
     report("正在核对并删除旧部署…");RootBridge.run(RootBridge.BASE+"/cleanup-legacy.sh",null,90);report("旧部署已清理，当前由本 App 管理");
    }else if(task.equals("SELFTEST")){
     JSONObject result=RootBridge.api("selftest",null);report("自检通过：账号 "+result.optJSONArray("testedAccounts")+"，回声包 "+result.optInt("echoPackets"));
+   }else if(task.equals("HEALTH_CONFIG")){
+    RootBridge.healthConfigure(this,healthEnabled,HealthPolicy.minutes(healthMinutes));report(healthEnabled?"已启用服务器自动检查":"已关闭服务器自动检查");
    }else if(task.equals("STOP")){
     RootBridge.run(RootBridge.BASE+"/control.sh stop",null,35);report("服务器已停止");awake(false);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
    }else if(task.equals("BOOT")){

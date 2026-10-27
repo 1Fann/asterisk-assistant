@@ -1,9 +1,9 @@
-private/
 out/
+private/
+.work/
+__pycache__/
+*.apk
 *.jks
 *.keystore
 *.password
-local.properties
-__pycache__/
-*.pyc
-.work/
+*.log
