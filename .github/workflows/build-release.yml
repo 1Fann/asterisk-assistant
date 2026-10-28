@@ -64,13 +64,13 @@ jobs:
           python3 tools/audit_public.py
           python3 tools/verify_release.py
           python3 tools/make_source_zip.py
-          tag=$(python3 -c 'import json,pathlib; p=next(pathlib.Path(".work/release").glob("*.apk")); m=next(json.loads(f.read_text()) for f in pathlib.Path("releases").glob("*/manifest.json") if json.loads(f.read_text())["name"]==p.name); print("v"+m["version"])')
+          tag=$(python3 -c 'import xml.etree.ElementTree as E; print("v"+E.parse("AndroidManifest.xml").getroot().attrib["{http://schemas.android.com/apk/res/android}versionName"])')
           if gh release view "$tag" >/dev/null 2>&1; then
             echo 'Release already exists; published assets are retained.'
             exit 0
           fi
           gh release create "$tag" .work/release/*.apk .work/release/*-source.zip .work/release/SHA256SUMS \
-            --target "$GITHUB_SHA" --title "$GH_REPO $tag" --notes-file "releases/$tag/NOTES.md"
+            --target "$GITHUB_SHA" --latest --title "$GH_REPO $tag" --notes-file "releases/$tag/NOTES.md"
 
   callerid-release:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
