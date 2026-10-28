@@ -15,3 +15,19 @@ Asterisk 和 Ubuntu Base 为独立上游项目，其可执行文件及根文件�
 This is a community Android management tool, not an official Asterisk or Canonical app. No endorsement is implied.
 
 本项目为社区 Android 管理工具，并非 Asterisk 或 Canonical 官方 App。
+
+## Optional number-formatting dependency / 可选号码格式依赖
+
+The optional `tools/callerid-format` extension downloads `phonenumberslite`
+9.0.42, the Python port of Google's libphonenumber, under Apache-2.0. Its fixed
+SHA-256 is recorded in the downloader and deployment guide. The complete wheel
+retains its upstream license, copyright and package metadata. It is installed
+beside the server-side formatter, outside global Python packages, and is not
+bundled in the Android APK. This repository's MIT license does not replace it.
+
+可选扩展下载 Apache-2.0 授权的 `phonenumberslite` 9.0.42，固定校验值见下载脚本
+及部署说明。完整 wheel 保留上游许可证、版权及包元数据，不安装到全局 Python
+环境，也不包含在 APK 内。仓库 MIT 许可证不替代上游许可证。
+
+- [Google libphonenumber](https://github.com/google/libphonenumber)
+- [Python port and license](https://github.com/daviddrysdale/python-phonenumbers)

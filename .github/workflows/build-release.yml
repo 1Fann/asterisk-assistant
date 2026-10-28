@@ -19,6 +19,8 @@ jobs:
         run: |
           for file in assets/runtime/*.sh; do sh -n "$file"; done
           python3 check-backend.py assets/runtime
+          python3 tools/callerid-format/download_dependency.py
+          python3 tools/callerid-format/check_format.py
           mkdir -p .work/policy
           javac -d .work/policy src/com/fann/asterisk/HealthPolicy.java tests/HealthPolicyChecks.java
           java -cp .work/policy com.fann.asterisk.HealthPolicyChecks

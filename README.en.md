@@ -14,6 +14,24 @@ Opt-in root monitoring has a1–1440 minute interval (default5), immediate check
 
 Android12+, ARM64, Root,1GB free space and `/data/adb/ksu/bin/busybox` are required. Grant Root and notifications, deploy, and read locally generated account credentials in the app. Fresh defaults: client1001, gateway2001, SIP UDP16060, RTP22000–22019 and echo600. Migrated deployments retain their settings. Fresh deployment does not enable cellular calling routes. No router changes or cloud credential upload. Runtime: `/data/adb/asterisk-app`; native Asterisk runs under the app's ordinary UID.
 
+## Incoming number grouping (optional server extension)
+
+The [formatting scripts and deployment tool](tools/callerid-format/README.md) use
+the Python port of Google libphonenumber offline, with metadata for 245 regions.
+Supported formats include mobile, fixed-line, service and international numbers.
+Grouping boundaries come from that metadata; display separators become spaces.
+Only numeric display names change. Actual caller numbers, presentation privacy
+and textual names are preserved. Bare numbers default to CN; short codes,
+service strings and unknown formats are left alone. This does not claim exact
+parity with Apple's native phone UI.
+
+This is an opt-in tool for an existing Groundwire-priority incoming route. It
+requires computer ADB and phone Shell Root, supports upgrades and repeat
+deployment, and does not create cellular routes in fresh echo-only setups.
+The APK remains **1.1.1** and does not automatically enable this extension.
+The dependency is SHA-256 pinned; call-time number processing never uses a
+network service. See the linked bilingual deployment and validation guide.
+
 ## Build and signing
 
 On Windows with JDK21, Android SDK35 and Build Tools36.0.0, run `./build.ps1 -SdkRoot C:/Android/Sdk -JavaHome C:/Java/jdk-21`. Keys are generated locally under ignored `private/`. Public release APKs retain the maintainer's existing signing identity; CI uses a disposable key to verify compilation. Self-signed builds must update certificate pins (`RootBridge.CERT` or `Root.DUALSIM_CERT`, including the latter's paired gateway identity). A different certificate cannot update an existing installation. No private signing keys or device configuration are published.

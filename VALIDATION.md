@@ -6,6 +6,23 @@ The server and gateway monitors were separately paused to verify ownership: the 
 
 No phone accounts, passwords, device identifiers, logs, signing keys or Cloudflare data are included.
 
+## Optional incoming number grouping (2026-10-29)
+
+The existing phone's server-side formatter passed six local regression groups,
+including examples across all 245 supported regions and exact digit preservation.
+Nine isolated Asterisk Local-channel cases passed on the phone, checking mobile,
+fixed-line, service, international +/00, short-code, textual-name and restricted
+caller handling. They also checked unchanged caller numbers and presentation
+flags, plus successful AGI execution. No real SIP endpoint or cellular calls were
+placed by these tests. Temporary test contexts were removed; the rest of the
+incoming dialplan was verified unchanged. The user confirmed spaced display with
+the previous China mobile-only rule. New international live incoming calls have
+not been user-tested, and exact iOS native formatting is not claimed.
+
+六组本地回归检查及手机端九项隔离验证通过。用户已确认旧大陆手机号规则能显示
+空格；新版国际号码的真实来电尚未实测。仅发布可选服务端脚本、部署工具和文档，
+APK 保持 1.1.1，未声称 APK 自动包含或启用这项扩展。
+
 ## Public IPv6 / DDNS (1.1.1)
 
 After deployment, open Public IPv6 / DDNS, enable it and enter your own hostname. Your existing DDNS service continues to manage its AAAA record; Cloudflare must use DNS-only. Use the hostname without a port as the client domain, `sip:phone.example.com:port` as the UDP proxy, and retain existing credentials.

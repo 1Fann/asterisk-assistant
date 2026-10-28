@@ -35,6 +35,14 @@ Windows、JDK21、Android SDK35、Build Tools36.0.0：
 
 构建脚本在本机 `private/` 生成签名文件。公开发布 APK 使用维护者的既有签名，可覆盖升级已安装版本；CI 使用临时签名，只验证构建。自行签名需要同步修改代码中的证书指纹：Asterisk 的 `RootBridge.CERT`；Voice SIP 助手的 `Root.DUALSIM_CERT`（其自身及配套网关信任指纹）。不同签名不能直接覆盖安装。私钥、密码和手机配置不在仓库中。
 
+## 来电号码分段（可选服务端扩展）
+
+新增 [来电显示脚本及部署工具](tools/callerid-format/README.md)，使用 Google libphonenumber 的 Python 移植版离线处理 245 个国家／地区的号码数据。包括大陆手机、固话、400／800、港澳台及带国家代码的国际号码；分组边界来自号码库，显示分隔符统一为空格。
+
+仅修改数字形式的显示名称，保留真实主叫号码、隐私状态及文字姓名。无国家区号时默认中国大陆；短号、服务串和无法识别的号码保持原样。不能承诺与 iPhone 原生电话的排版完全一致。
+
+这是针对现有 Groundwire 优先来电路由的可选部署工具，需要电脑 ADB 与手机 Shell Root。支持从旧规则升级及重复部署；全新回声测试环境不会自动建立手机通话路由。当前 APK 仍为 **1.1.1**，安装 APK 不会自动启用这项扩展。依赖经过固定 SHA-256 校验，号码处理不联网。详见链接中的中英文步骤和验证范围。
+
 ## 验证与许可证
 
 见 [VALIDATION.md](VALIDATION.md)、[第三方说明](NOTICE.md)。管理代码 MIT；Asterisk、Ubuntu 保留各自许可证。Release 附件包含本地签名 APK 和 SHA256SUMS，签名私钥不上传 CI。
