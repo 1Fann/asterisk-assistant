@@ -30,7 +30,7 @@ final class RootBridge {
  }
  static JSONObject parse(String value){String[] lines=value.split("\n");for(int i=lines.length-1;i>=0;i--){try{return new JSONObject(lines[i]);}catch(Exception ignored){}}return null;}
  static JSONObject api(String action,JSONObject data)throws Exception{
-  if(!action.matches("status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|set_public_ipv6|selftest|migration_verify"))throw new IOException("无效操作");
+  if(!action.matches("status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|set_public_ipv6|set_callerid|selftest|migration_verify"))throw new IOException("无效操作");
   JSONObject result=parse(run(BASE+"/control.sh "+(action.equals("status")?"status":"api "+action),data,60));
   if(result==null)throw new IOException("服务器未返回有效状态");
   if(!result.optBoolean("ok"))throw new IOException(result.optString("error","操作失败"));
@@ -40,11 +40,12 @@ final class RootBridge {
   verifySelf(context);String apkHash=hash(new File(context.getApplicationInfo().sourceDir));
   File directory=new File(context.getFilesDir(),"runtime");directory.mkdirs();
   for(String name:context.getAssets().list("runtime")){
-   if(!name.matches("[a-z0-9][a-z0-9-]*\\.(sh|py)"))continue;
+   if(!name.matches("[a-z0-9][a-z0-9-]*\\.(sh|py)")&&!name.equals("phonenumberslite-9.0.42-py2.py3-none-any.whl"))continue;
    try(InputStream in=context.getAssets().open("runtime/"+name);OutputStream out=new FileOutputStream(new File(directory,name))){byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}
   }
   String source=directory.getAbsolutePath();
-  String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; cp "+source+"/* "+BASE+"/; chmod 700 "+BASE+"/*.sh; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh; chmod 700 /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; cp "+BASE+"/*.py "+BASE+"/run.sh "+BASE+"/rootfs/opt/asterisk-app/; fi; echo ready";
+  File wheel=new File(directory,"phonenumberslite-9.0.42-py2.py3-none-any.whl");if(!hash(wheel).equals("7ae0a97b12e9f0749e7bed2c9c3da4df43648ea5ba021de86b36088d98a0915e"))throw new IOException("内置号码库校验失败");
+  String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; cp "+source+"/* "+BASE+"/; chmod 700 "+BASE+"/*.sh; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh; chmod 700 /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; cp "+BASE+"/*.py "+BASE+"/*.whl "+BASE+"/run.sh "+BASE+"/rootfs/opt/asterisk-app/; fi; echo ready";
   run(command,null,30);
   run("umask 077; printf '%s\\n' "+apkHash+" > "+BASE+"/health-helper.sha256",null,10);
  }

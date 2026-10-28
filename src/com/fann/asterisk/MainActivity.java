@@ -32,12 +32,12 @@ public class MainActivity extends Activity {
   button(deploy,"一键部署 Asterisk",()->confirm("部署 Asterisk","将下载 Ubuntu ARM64 运行环境并安装 Asterisk。已有本 App 配置会保留；首次使用端口 16060。",()->service("DEPLOY")));
   button(deploy,"迁移现有账号与配置",()->confirm("迁移旧部署","保留现有 SIP 账号、密码、拨号配置和端口。迁移时会短暂重启服务器，旧部署在验证后再清理。",()->service("IMPORT")));
   row(deploy,new String[]{"账号与回声自检","清理旧部署"},new Runnable[]{()->service("SELFTEST"),()->confirm("删除旧部署","仅删除旧 Asterisk 服务器、旧开机脚本和“SIP 服务器后台”辅助 App。迁移及回声验证通过后才允许清理。",()->service("CLEANUP"))});
-  LinearLayout manage=card();text(manage,"可视化管理",17,true);button(manage,"SIP 账号与连接方式",()->accounts());button(manage,"SIP / RTP 端口",()->ports());button(manage,"公网 IPv6 / DDNS 域名",()->PublicNetwork.show(this));button(manage,"拨号规则与配置文件",()->chooseFile());button(manage,"查看运行日志",()->async(()->RootBridge.api("logs",null).optString("content"),s->showText("运行日志",s)));
+  LinearLayout manage=card();text(manage,"可视化管理",17,true);button(manage,"SIP 账号与连接方式",()->accounts());button(manage,"SIP / RTP 端口",()->ports());button(manage,"公网 IPv6 / DDNS 域名",()->PublicNetwork.show(this));button(manage,"来电号码分段",()->CallerDisplay.show(this));button(manage,"拨号规则与配置文件",()->chooseFile());button(manage,"查看运行日志",()->async(()->RootBridge.api("logs",null).optString("content"),s->showText("运行日志",s)));
   LinearLayout options=card();text(options,"后台运行",17,true);
   Switch boot=new Switch(this);boot.setText("开机自动启动");boot.setChecked(getSharedPreferences("app",0).getBoolean("autostart",true));options.addView(boot);boot.setOnCheckedChangeListener((b,on)->async(()->{RootBridge.run(RootBridge.BASE+"/control.sh autostart "+(on?"1":"0"),null,15);getSharedPreferences("app",0).edit().putBoolean("autostart",on).apply();return on?"开机自启已开启":"开机自启已关闭";},this::toast));
   Switch wake=new Switch(this);wake.setText("专用唤醒锁（增加耗电）");wake.setChecked(getSharedPreferences("app",0).getBoolean("awake",false));options.addView(wake);wake.setOnCheckedChangeListener((b,on)->{getSharedPreferences("app",0).edit().putBoolean("awake",on).apply();service("WAKE");toast(on?"已启用专用唤醒锁":"已关闭专用唤醒锁");});
   text(options,"保持通知可见，并允许后台运行。账号密码只保存在本机 Root 私有目录。卸载前请关闭自动检查，再停止服务器。",13,false);
-  text(page,"Asterisk 助手 1.1.1 · ARM64 / Root\n当前预置回声号码：600",12,false);
+  text(page,"Asterisk 助手 1.1.2 · ARM64 / Root\n当前预置回声号码：600",12,false);
   if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7);
   refresh(true);healthMonitor.refresh();
  }

@@ -52,7 +52,7 @@ case "${1:-status}" in
   cli) shift; exec "$BASE/enter.sh" /usr/sbin/asterisk -rx "$*";;
   api)
     shift
-    case "${1:-status}" in status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|set_public_ipv6|network|initialize|migration_verify|selftest) ;; *) echo invalid_action; exit 1;; esac
+    case "${1:-status}" in status|logs|accounts|credentials|save_account|delete_account|read_file|save_file|restore_file|set_ports|set_public_ipv6|set_callerid|network|initialize|migration_verify|selftest) ;; *) echo invalid_action; exit 1;; esac
     LEGACY=0; [ -d /data/adb/sip-pbx ] && LEGACY=1
     AUTO=$(cat "$BASE/autostart" 2>/dev/null || echo 0)
     CLEANED=0; [ -f "$BASE/legacy-cleaned" ] && CLEANED=1

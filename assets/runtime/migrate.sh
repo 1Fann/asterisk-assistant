@@ -6,6 +6,8 @@ rm -f "$BASE/rootfs/etc/asterisk-app/selftest-passed" "$BASE/migration-verified"
 OLD=/data/adb/sip-pbx
 BB=/data/adb/ksu/bin/busybox
 R=$BASE/rootfs
+touch "$R/etc/asterisk-app/callerid-defer"
+trap 'rm -f "$R/etc/asterisk-app/callerid-defer"' EXIT
 [ -f "$BASE/installed" ] && [ -f "$BASE/.asterisk-app-owned" ] || exit 1
 [ -d "$OLD/rootfs/etc/asterisk" ] || { echo no_legacy_config; exit 1; }
 CALLS=$("$OLD/control.sh" cli core show channels count 2>/dev/null | "$BB" awk '/ active calls/{print $1;exit}')

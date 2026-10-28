@@ -2,4 +2,5 @@
 *.jar binary
 *.png binary
 *.jpg binary
+*.whl binary
 *.b64* -text

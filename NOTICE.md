@@ -16,18 +16,20 @@ This is a community Android management tool, not an official Asterisk or Canonic
 
 本项目为社区 Android 管理工具，并非 Asterisk 或 Canonical 官方 App。
 
-## Optional number-formatting dependency / 可选号码格式依赖
+## Bundled number-formatting dependency / 内置号码格式依赖
 
-The optional `tools/callerid-format` extension downloads `phonenumberslite`
-9.0.42, the Python port of Google's libphonenumber, under Apache-2.0. Its fixed
-SHA-256 is recorded in the downloader and deployment guide. The complete wheel
-retains its upstream license, copyright and package metadata. It is installed
-beside the server-side formatter, outside global Python packages, and is not
-bundled in the Android APK. This repository's MIT license does not replace it.
+From 1.1.2 the Android APK bundles the complete `phonenumberslite` 9.0.42 wheel,
+a Python port of Google's libphonenumber under Apache-2.0. It retains its upstream
+license, copyright and package metadata. Its SHA-256 is
+`7ae0a97b12e9f0749e7bed2c9c3da4df43648ea5ba021de86b36088d98a0915e`.
+The app verifies it before staging, and the server coordinator verifies it before
+installation. It is installed beside the formatter, outside global Python
+packages. Original management and integration code remains MIT; that license
+does not replace the dependency's license.
 
-可选扩展下载 Apache-2.0 授权的 `phonenumberslite` 9.0.42，固定校验值见下载脚本
-及部署说明。完整 wheel 保留上游许可证、版权及包元数据，不安装到全局 Python
-环境，也不包含在 APK 内。仓库 MIT 许可证不替代上游许可证。
+1.1.2 起 APK 内置 Apache-2.0 授权的完整 `phonenumberslite` 9.0.42 wheel，保留
+许可证、版权及包元数据。App 和服务端部署前均校验固定 SHA-256。依赖安装在
+格式化脚本旁，不修改全局 Python 包；本项目 MIT 许可证不替代上游许可证。
 
 - [Google libphonenumber](https://github.com/google/libphonenumber)
 - [Python port and license](https://github.com/daviddrysdale/python-phonenumbers)

@@ -1,10 +1,12 @@
 # 来电号码分段 / Incoming number grouping
 
-这是现有 Asterisk 来电路由的可选部署工具，不是 Android APK 的自动安装功能。
-修改手机服务配置，无需更新 APK；APK 版本号保持 1.1.1。
+推荐使用 Asterisk 助手 1.1.2：号码分段和号码库已内置 APK，App 自动部署，提供开关和默认地区设置。本目录保留旧版独立部署工具，供备用或维护使用。
 
-This optional tool extends an existing Asterisk incoming route. It updates the
-phone's server configuration, not the Android APK or its deployment defaults.
+以下步骤适用于独立部署工具，不是使用新版 App 的必要步骤。
+
+Asterisk Assistant 1.1.2 now bundles and deploys this feature with visual settings.
+The following standalone tools are retained as an optional legacy fallback;
+they are not required when using the new app.
 
 适用范围：已配置 `[vsa-phone-local]`、入口 `2001` 的 Groundwire 优先来电路由。
 工具支持从无分段、旧的大陆手机号分段规则升级，也支持重复部署脚本更新。

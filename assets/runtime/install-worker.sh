@@ -20,7 +20,7 @@ mkdir -p "$R/opt/asterisk-app" "$R/etc/asterisk-app"
 chmod 700 "$R/etc/asterisk-app"
 printf '%s\n' "$2" > "$R/etc/asterisk-app/android-uid"
 cp "$BASE/guest-install.sh" "$R/opt/asterisk-app/guest-install.sh"
-cp "$BASE/api.py" "$BASE/fresh-config.py" "$BASE/selftest.py" "$BASE/run.sh" "$R/opt/asterisk-app/"
+cp "$BASE/"*.py "$BASE/"*.whl "$BASE/run.sh" "$R/opt/asterisk-app/"
 phase packages 50
 "$BASE/enter.sh" /bin/sh /opt/asterisk-app/guest-install.sh > "$BASE/install.log" 2>&1
 IP=$(ip -4 -o addr show wlan0 | "$BB" awk '{split($4,a,"/"); print a[1]; exit}')

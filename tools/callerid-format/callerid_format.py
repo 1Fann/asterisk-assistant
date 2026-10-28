@@ -85,7 +85,10 @@ def main():
     region = 'CN'
     settings = BUNDLE / 'settings.json'
     if settings.exists():
-        region = json.loads(settings.read_text(encoding='utf-8')).get('default_region', 'CN')
+        options = json.loads(settings.read_text(encoding='utf-8'))
+        if not options.get('enabled', True):
+            return
+        region = options.get('default_region', 'CN')
     formatted = format_display(env.get('agi_callerid', ''),
                                env.get('agi_calleridname', ''), region)
     if formatted is not None:

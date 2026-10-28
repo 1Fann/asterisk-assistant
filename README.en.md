@@ -2,7 +2,7 @@
 
 [中文](README.md) · [Download APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-Version **1.1.1**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+Version **1.1.2**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
 
 Features include deployment, start/stop/restart, SIP accounts/passwords, connection state, ports, configuration/backups, logs, authentication/RTP echo self-tests, legacy migration/cleanup, boot startup and an optional wake lock.
 
@@ -14,23 +14,26 @@ Opt-in root monitoring has a1–1440 minute interval (default5), immediate check
 
 Android12+, ARM64, Root,1GB free space and `/data/adb/ksu/bin/busybox` are required. Grant Root and notifications, deploy, and read locally generated account credentials in the app. Fresh defaults: client1001, gateway2001, SIP UDP16060, RTP22000–22019 and echo600. Migrated deployments retain their settings. Fresh deployment does not enable cellular calling routes. No router changes or cloud credential upload. Runtime: `/data/adb/asterisk-app`; native Asterisk runs under the app's ordinary UID.
 
-## Incoming number grouping (optional server extension)
+## Built-in incoming number grouping (1.1.2)
 
-The [formatting scripts and deployment tool](tools/callerid-format/README.md) use
-the Python port of Google libphonenumber offline, with metadata for 245 regions.
-Supported formats include mobile, fixed-line, service and international numbers.
-Grouping boundaries come from that metadata; display separators become spaces.
-Only numeric display names change. Actual caller numbers, presentation privacy
-and textual names are preserved. Bare numbers default to CN; short codes,
-service strings and unknown formats are left alone. This does not claim exact
-parity with Apple's native phone UI.
+The APK now includes the formatter and complete pinned lightweight libphonenumber
+metadata for 245 regions. New deployment prepares it automatically. On upgrade,
+open the app and grant Root; existing configurations are taken over while idle.
+No computer ADB or separate deployment ZIP is required.
 
-This is an opt-in tool for an existing Groundwire-priority incoming route. It
-requires computer ADB and phone Shell Root, supports upgrades and repeat
-deployment, and does not create cellular routes in fresh echo-only setups.
-The APK remains **1.1.1** and does not automatically enable this extension.
-The dependency is SHA-256 pinned; call-time number processing never uses a
-network service. A [self-contained deployment bundle is available in Releases](https://github.com/1Fann/asterisk-assistant/releases/tag/callerid-format-v1.0.0), with the pinned dependency included. See the linked bilingual deployment and validation guide.
+Open **Incoming number grouping / 来电号码分段** on the home screen to toggle the
+feature and choose the default region (CN by default). International country
+codes are recognized automatically. Bare numbers use the selected region.
+Formatting remains offline; only numeric display names change. Caller numbers,
+privacy and textual names remain intact. Short codes, service strings and
+unknown formats are preserved. Calls or unknown call state defer configuration;
+idle status refresh retries automatically. Settings changes require idle state.
+
+Fresh deployment remains echo-only and does not create cellular calling routes.
+Authenticated loopback gateway contexts are wrapped without changing their
+original priorities; existing standalone hooks are taken over in place to avoid
+double execution. Exact Apple native UI parity is not claimed. The [standalone
+deployment tools](tools/callerid-format/README.md) remain as a legacy fallback.
 
 ## Build and signing
 

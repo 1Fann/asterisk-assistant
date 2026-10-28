@@ -8,6 +8,7 @@ import runpy
 import secrets
 import subprocess
 import sys
+from types import SimpleNamespace
 
 os.umask(0o077)
 C=Path('/etc/asterisk')
@@ -86,7 +87,15 @@ def active_calls():
     m=re.search(r'(\d+) active calls',text)
     return int(m.group(1)) if m else 0
 
+def callerid_state(update=False, desired=None):
+    import callerid
+    state=SimpleNamespace(C=C,S=S,cli=cli,blocks=blocks,field=field,write=write)
+    return callerid.prepare(state,desired) if update else callerid.describe(state)
+
 def status():
+    try:cid=callerid_state(True)
+    except Exception as error:
+        cid=callerid_state();cid.update(pending=True,warning=str(error) if isinstance(error,ValueError) else '号码分段准备失败，请刷新重试')
     uptime=cli('core show uptime')
     version=subprocess.run(['/usr/sbin/asterisk','-V'],capture_output=True,text=True,timeout=8).stdout.strip()
     return {'ok':True,'installed':True,'running':bool(uptime),'version':version,
@@ -96,7 +105,7 @@ def status():
             'legacyCleaned':len(sys.argv)>4 and sys.argv[4]=='1',
             'migrationPending':(S/'import-check/pjsip.conf').exists(),
             'selfTestPassed':(S/'selftest-passed').exists(),
-            'publicIpv6':public_ipv6(), 'ipv6':read_ipv6()}
+            'publicIpv6':public_ipv6(), 'ipv6':read_ipv6(), 'callerId':cid}
 
 def public_ipv6():
     path=S/'public-ipv6.json'
@@ -262,6 +271,7 @@ def main(action,data):
         if not (S/'initialized').exists():
             runpy.run_path('/opt/asterisk-app/fresh-config.py',run_name='__main__')
             (S/'initialized').touch()
+        callerid_state(True)
         return {'ok':True}
     if action=='status':return status()
     if action=='logs':
@@ -278,6 +288,9 @@ def main(action,data):
     if action=='delete_account':return delete_account(data)
     if action=='set_ports':return set_ports(data)
     if action=='set_public_ipv6':return set_public_ipv6(data)
+    if action=='set_callerid':
+        result=callerid_state(True,data)
+        return {'ok':True,'callerId':result,'message':'号码分段设置已保存并生效'}
     if action=='network':return network()
     if action=='read_file':return {'ok':True,'content':config_path(data).read_text()}
     if action=='save_file':
@@ -305,7 +318,7 @@ def main(action,data):
 if __name__=='__main__':
     try:
         action=sys.argv[1] if len(sys.argv)>1 else 'status'
-        data=json.loads(sys.stdin.read() or '{}') if action in {'credentials','save_account','delete_account','read_file','save_file','restore_file','set_ports','set_public_ipv6'} else {}
+        data=json.loads(sys.stdin.read() or '{}') if action in {'credentials','save_account','delete_account','read_file','save_file','restore_file','set_ports','set_public_ipv6','set_callerid'} else {}
         result=main(action,data)
         print(json.dumps(result,ensure_ascii=False))
     except Exception as error:

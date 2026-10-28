@@ -21,6 +21,7 @@ jobs:
           python3 check-backend.py assets/runtime
           python3 tools/callerid-format/download_dependency.py
           python3 tools/callerid-format/check_format.py
+          python3 tests/check_callerid_runtime.py
           mkdir -p .work/policy
           javac -d .work/policy src/com/fann/asterisk/HealthPolicy.java tests/HealthPolicyChecks.java
           java -cp .work/policy com.fann.asterisk.HealthPolicyChecks
@@ -86,14 +87,14 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/audit_public.py
-          python3 tools/callerid-format/download_dependency.py
-          python3 tools/callerid-format/check_format.py
-          python3 tools/make_callerid_release.py
           tag=$(python3 -c 'import json; print(json.load(open("releases/callerid-format-v1.0.0/manifest.json"))["tag"])')
           if gh release view "$tag" >/dev/null 2>&1; then
             echo 'Caller formatting release already exists; published assets are retained.'
             exit 0
           fi
+          python3 tools/callerid-format/download_dependency.py
+          python3 tools/callerid-format/check_format.py
+          python3 tools/make_callerid_release.py
           gh release create "$tag" .work/callerid-release/*.apk .work/callerid-release/*.zip .work/callerid-release/SHA256SUMS \
             --target "$GITHUB_SHA" --latest --title "来电号码分段扩展 / Caller number formatting 1.0.0" \
             --notes-file "releases/$tag/NOTES.md"

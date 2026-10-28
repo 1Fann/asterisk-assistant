@@ -32,3 +32,26 @@ Managed client endpoints move to a non-temporary global Wi-Fi IPv6 address for s
 The foreground service holds a Wi-Fi multicast reception lock for ROMs that filter IPv6 neighbor discovery while asleep. This consumes additional power and is released when public mode is disabled, the server stops or the process exits. Authentication/RTP echo self-tests support IPv6. No actual cellular calls are automated and router settings are not modified. Allow the configured SIP UDP and RTP ports along the path. The preset uses UDP without SIP TLS or media encryption; management and credentials remain local.
 
 User validation confirmed hostname registration and echo over cellular Internet. Short screen-off cross-device SIP and ICMPv6 checks passed. Prolonged deep sleep, reboot and full dual-SIM public call coverage remain pending.
+
+## Built-in APK integration 1.1.2 (2026-10-29)
+
+Seven isolated runtime integration groups passed: fresh enabled defaults,
+credential/client/dialplan preservation, idempotent setup, switch/default-region
+settings, busy/unknown-call deferral, legacy hook takeover, migration deferral,
+invalid configuration and dependency corruption handling. The six number-format
+regression groups continue to pass across 245 metadata regions.
+
+The production-signed 1.1.2 APK was installed over 1.1.1 on the phone. Opening the
+app staged the bundled scripts and wheel and created enabled/CN configuration
+automatically. Private credential fingerprints and existing pjsip.conf,
+extensions.conf and rtp.conf fingerprints matched before/after upgrade. Gateway
+registration remained present. Actual AGI execution verified disabling formatting,
+changing the default region to US, then restoring enabled/CN. All nine isolated
+Asterisk cases passed with the new APK's installed formatter; no cellular calls
+were initiated. New-install bootstrap is tested in fixtures rather than by
+clearing the user's working deployment. The device's lock screen prevented a
+visual walkthrough; the home entry is compiled and the app/API is verified.
+
+1.1.2 原签名覆盖升级、App 自动接管、账号及原拨号配置保留、开关与默认地区设置
+和九项手机端隔离验证均通过。新安装流程使用隔离配置验证，没有清空用户现有部署。
+未自动拨打真实电话；此次尚未重新实测完整手机通话，也未完成锁屏后的界面逐项点验。
