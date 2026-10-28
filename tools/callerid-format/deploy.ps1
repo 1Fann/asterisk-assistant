@@ -7,6 +7,8 @@ $ErrorActionPreference='Stop'
 $repoRoot=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $wheelName='phonenumberslite-9.0.42-py2.py3-none-any.whl'
 $wheel=Join-Path $repoRoot ('.work\callerid-format\'+$wheelName)
+$bundledWheel=Join-Path $PSScriptRoot $wheelName
+if(Test-Path -LiteralPath $bundledWheel){$wheel=$bundledWheel}
 & $PythonPath (Join-Path $PSScriptRoot 'download_dependency.py')
 if($LASTEXITCODE -ne 0){throw 'Dependency download or checksum verification failed'}
 $target=@();if($Serial){$target=@('-s',$Serial)}

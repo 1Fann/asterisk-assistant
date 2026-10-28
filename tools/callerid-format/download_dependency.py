@@ -13,6 +13,11 @@ DESTINATION = ROOT/'.work/callerid-format'/WHEEL
 
 
 def retrieve():
+    bundled = Path(__file__).resolve().parent/WHEEL
+    if bundled.exists():
+        if hashlib.sha256(bundled.read_bytes()).hexdigest() != SHA256:
+            raise RuntimeError('Bundled dependency checksum mismatch')
+        return bundled
     if DESTINATION.exists():
         if hashlib.sha256(DESTINATION.read_bytes()).hexdigest() != SHA256:
             raise RuntimeError('Cached dependency checksum mismatch')

@@ -70,3 +70,30 @@ jobs:
           fi
           gh release create "$tag" .work/release/*.apk .work/release/*-source.zip .work/release/SHA256SUMS \
             --target "$GITHUB_SHA" --title "$GH_REPO $tag" --notes-file "releases/$tag/NOTES.md"
+
+  callerid-release:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [checks, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Publish caller number formatting extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 tools/audit_public.py
+          python3 tools/callerid-format/download_dependency.py
+          python3 tools/callerid-format/check_format.py
+          python3 tools/make_callerid_release.py
+          tag=$(python3 -c 'import json; print(json.load(open("releases/callerid-format-v1.0.0/manifest.json"))["tag"])')
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Caller formatting release already exists; published assets are retained.'
+            exit 0
+          fi
+          gh release create "$tag" .work/callerid-release/*.apk .work/callerid-release/*.zip .work/callerid-release/SHA256SUMS \
+            --target "$GITHUB_SHA" --latest --title "来电号码分段扩展 / Caller number formatting 1.0.0" \
+            --notes-file "releases/$tag/NOTES.md"

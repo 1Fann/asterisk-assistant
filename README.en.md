@@ -30,7 +30,7 @@ requires computer ADB and phone Shell Root, supports upgrades and repeat
 deployment, and does not create cellular routes in fresh echo-only setups.
 The APK remains **1.1.1** and does not automatically enable this extension.
 The dependency is SHA-256 pinned; call-time number processing never uses a
-network service. See the linked bilingual deployment and validation guide.
+network service. A [self-contained deployment bundle is available in Releases](https://github.com/1Fann/asterisk-assistant/releases/tag/callerid-format-v1.0.0), with the pinned dependency included. See the linked bilingual deployment and validation guide.
 
 ## Build and signing
 

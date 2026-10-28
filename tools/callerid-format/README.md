@@ -18,6 +18,10 @@ manual AGI hook; this tool refuses to guess or replace them.
 
 ## 部署 / Deployment
 
+可直接下载 [Releases 中的完整部署包](https://github.com/1Fann/asterisk-assistant/releases/tag/callerid-format-v1.0.0)，解压后运行以下命令。部署包已包含经校验的号码库，无需再次下载依赖。
+
+The [complete release bundle](https://github.com/1Fann/asterisk-assistant/releases/tag/callerid-format-v1.0.0) includes the verified number-formatting dependency. Extract it and run the command below; no dependency download is needed.
+
 在项目根目录、手机已通过 ADB 连接且 Shell 已获 Root 的情况下运行：
 From the repository root, with an ADB-connected phone and Root granted to Shell:
 

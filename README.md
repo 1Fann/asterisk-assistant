@@ -37,7 +37,7 @@ Windows、JDK21、Android SDK35、Build Tools36.0.0：
 
 ## 来电号码分段（可选服务端扩展）
 
-新增 [来电显示脚本及部署工具](tools/callerid-format/README.md)，使用 Google libphonenumber 的 Python 移植版离线处理 245 个国家／地区的号码数据。包括大陆手机、固话、400／800、港澳台及带国家代码的国际号码；分组边界来自号码库，显示分隔符统一为空格。
+新增 [来电显示脚本及部署工具](tools/callerid-format/README.md)，[Releases 提供完整部署包](https://github.com/1Fann/asterisk-assistant/releases/tag/callerid-format-v1.0.0)。使用 Google libphonenumber 的 Python 移植版离线处理 245 个国家／地区的号码数据。包括大陆手机、固话、400／800、港澳台及带国家代码的国际号码；分组边界来自号码库，显示分隔符统一为空格。
 
 仅修改数字形式的显示名称，保留真实主叫号码、隐私状态及文字姓名。无国家区号时默认中国大陆；短号、服务串和无法识别的号码保持原样。不能承诺与 iPhone 原生电话的排版完全一致。
 
