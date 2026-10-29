@@ -11,6 +11,10 @@ final class HealthPolicy {
   if(value<1||value>1440)throw new IOException("检查间隔请输入 1–1440 分钟");
   return value;
  }
+ static boolean backgroundBlocked(String value){
+  for(String line:value.split("\n"))if(line.matches(".*(?:RUN_ANY_IN_BACKGROUND|RUN_IN_BACKGROUND|MIUIOP\\(10008\\)):\\s*(?:ignore|deny|errored).*"))return true;
+  return false;
+ }
  static boolean healthy(String status){return status.contains("ready=true")&&status.contains("shizuku=CONNECTED")&&status.contains("audioReady=true")&&status.contains("sip=ready");}
  static boolean idle(String registry,String pbx,boolean serverExpected){
   Matcher m=Pattern.compile("(?m)^\\s*mCallState=([0-9]+)\\s*$").matcher(registry);

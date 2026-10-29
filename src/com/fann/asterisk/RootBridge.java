@@ -45,6 +45,8 @@ final class RootBridge {
   return result;
  }
  static void stage(Context context)throws Exception{
+  String installedMonitor=run("sha256sum "+BASE+"/health.sh 2>/dev/null | cut -d ' ' -f 1 || true",null,8);
+
   verifySelf(context);String apkHash=hash(new File(context.getApplicationInfo().sourceDir));
   File directory=new File(context.getFilesDir(),"runtime");directory.mkdirs();
   for(String name:context.getAssets().list("runtime")){
@@ -60,6 +62,16 @@ final class RootBridge {
   // Retire only our old migration hook. The APK now starts the same owned worker.
   run("if [ -f /data/adb/service.d/98-asterisk-wifi-compat.sh ] && grep -q 'Local Android 13 restore compatibility' /data/adb/service.d/98-asterisk-wifi-compat.sh; then rm /data/adb/service.d/98-asterisk-wifi-compat.sh; fi",null,8);
   run("umask 077; printf '%s\\n' "+apkHash+" > "+BASE+"/health-helper.sha256",null,10);
+  syncMonitorWake(context);
+  String currentMonitor=run("sha256sum "+BASE+"/health.sh | cut -d ' ' -f 1",null,8);
+  if(!installedMonitor.equals(currentMonitor)){
+   run("p=$(cat "+BASE+"/health-loop.pid 2>/dev/null); case $p in ''|*[!0-9]*) ;; *) if [ -r /proc/$p/cmdline ] && tr '\\000' ' ' </proc/$p/cmdline | grep -qF '"+BASE+"/health.sh --loop'; then kill -TERM $p; i=0; while kill -0 $p 2>/dev/null && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done; fi;; esac",null,15);
+   if(run("test -f "+BASE+"/health-enabled && echo yes || true",null,8).equals("yes"))healthLaunch();
+  }
+ }
+ static void syncMonitorWake(Context context)throws Exception{
+  boolean on=context.getSharedPreferences("app",0).getBoolean("awake",false);
+  run(on?"touch "+BASE+"/health-awake":"rm -f "+BASE+"/health-awake; printf '%s\\n' asterisk_monitor > /sys/power/wake_unlock 2>/dev/null || true",null,8);
  }
  static void verifySelf(Context c)throws Exception{
   android.content.pm.PackageInfo p=c.getPackageManager().getPackageInfo("com.fann.asterisk",android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);

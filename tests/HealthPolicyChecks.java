@@ -8,6 +8,11 @@ public class HealthPolicyChecks {
   for(String value:new String[]{null,"0","1441","-1","1.5","5; id","$(id)","99999",""}){
    try{HealthPolicy.minutes(value);throw new AssertionError("accepted invalid interval");}catch(java.io.IOException expected){passed++;}
   }
+  require(HealthPolicy.backgroundBlocked("RUN_ANY_IN_BACKGROUND: ignore; time=2s"));
+  require(HealthPolicy.backgroundBlocked("Uid mode: RUN_ANY_IN_BACKGROUND: deny"));
+  require(HealthPolicy.backgroundBlocked("MIUIOP(10008): ignore; rejectTime=3s"));
+  require(!HealthPolicy.backgroundBlocked("RUN_ANY_IN_BACKGROUND: allow; time=3s\nMIUIOP(10008): allow"));
+  require(!HealthPolicy.backgroundBlocked("POST_NOTIFICATION: ignore\nMIUIOP(10017): ignore"));
   String idle="    mCallState=0\n    mCallState=0\n";
   require(HealthPolicy.idle(idle,"0 active calls\n",true));
   require(!HealthPolicy.idle("mCallState=0\nmCallState=1\n","0 active calls\n",true));

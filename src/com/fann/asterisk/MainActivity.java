@@ -17,7 +17,7 @@ import org.json.*;
 public class MainActivity extends Activity {
  final java.util.concurrent.ExecutorService worker=Executors.newSingleThreadExecutor();
  final Handler handler=new Handler(Looper.getMainLooper());
- LinearLayout page;TextView state,detail,progress;HealthMonitor healthMonitor;JSONObject latest=new JSONObject();boolean loading=false,visible=false;
+ LinearLayout page;TextView state,detail,progress;HealthMonitor healthMonitor;JSONObject latest=new JSONObject();boolean loading=false,visible=false;TextView backgroundStatus;boolean backgroundPrompted;
  int ink=Color.rgb(26,40,59),blue=Color.rgb(28,86,180);
  final Runnable poll=new Runnable(){public void run(){if(visible){refresh(false);if(healthMonitor!=null)healthMonitor.refresh();handler.postDelayed(this,10000);}}};
  interface Work{String run()throws Exception;}
@@ -27,6 +27,9 @@ public class MainActivity extends Activity {
   LinearLayout status=card();text(status,"服务器状态",17,true);state=text(status,"正在检查 Root 与部署状态…",23,true);detail=text(status,"",14,false);progress=text(status,ManagerService.message,13,false);
   row(status,new String[]{"刷新 / Root 授权","启动"},new Runnable[]{()->refresh(true),()->service("START")});
   row(status,new String[]{"停止","重启"},new Runnable[]{()->confirm("停止服务器？","现有客户端将暂时断开。",()->service("STOP")),()->confirm("重启服务器？","现有通话会中断，请先结束通话。",()->service("RESTART"))});
+  LinearLayout bg=card();text(bg,"后台运行准备",17,true);
+  backgroundStatus=text(bg,"正在检查后台运行与自启动权限…",14,false);
+  button(bg,"检查 / 允许后台运行",()->background(true));
   healthMonitor=new HealthMonitor(this);
   LinearLayout deploy=card();text(deploy,"部署与迁移",17,true);text(deploy,"首次部署需要 Root、Wi-Fi 和约 500 MB 空间。运行环境下载会校验完整性。",14,false);
   button(deploy,"一键部署 Asterisk",()->confirm("部署 Asterisk","将下载 Ubuntu ARM64 运行环境并安装 Asterisk。已有本 App 配置会保留；首次使用端口 16060。",()->service("DEPLOY")));
@@ -42,10 +45,16 @@ public class MainActivity extends Activity {
   Switch boot=new Switch(this);boot.setText("开机自动启动");boot.setChecked(getSharedPreferences("app",0).getBoolean("autostart",true));options.addView(boot);boot.setOnCheckedChangeListener((b,on)->async(()->{RootBridge.run(RootBridge.BASE+"/control.sh autostart "+(on?"1":"0"),null,15);getSharedPreferences("app",0).edit().putBoolean("autostart",on).apply();return on?"开机自启已开启":"开机自启已关闭";},this::toast));
   Switch wake=new Switch(this);wake.setText("专用唤醒锁（增加耗电）");wake.setChecked(getSharedPreferences("app",0).getBoolean("awake",false));options.addView(wake);wake.setOnCheckedChangeListener((b,on)->{getSharedPreferences("app",0).edit().putBoolean("awake",on).apply();service("WAKE");toast(on?"已启用专用唤醒锁":"已关闭专用唤醒锁");});
   text(options,"保持通知可见，并允许后台运行。账号密码只保存在本机 Root 私有目录。卸载前请关闭自动检查，再停止服务器。",13,false);
-  text(page,"Asterisk 助手 1.2.0 · ARM64 / Root\n当前预置回声号码：600",12,false);
+  text(page,"Asterisk 助手 1.2.1 · ARM64 / Root\n当前预置回声号码：600",12,false);
   if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7);
-  refresh(true);healthMonitor.refresh();
+  refresh(true);healthMonitor.refresh();background(false);
  }
+ void background(boolean explicit){async(()->BackgroundAccess.missing(this),missing->{
+  backgroundStatus.setText(missing.isEmpty()?"后台运行、电池优化与自启动检查通过":"需要允许后台运行："+missing+"。否则息屏或清后台后可能断开。");
+  if(explicit||(!missing.isEmpty()&&!backgroundPrompted)){
+   backgroundPrompted=true;BackgroundAccess.explain(this,()->async(()->{BackgroundAccess.allow(this);return "后台运行设置已完成";},v->{toast(v);background(false);try{RootBridge.healthLaunch();}catch(Exception ignored){}}));
+  }
+ });}
  int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
  TextView text(LinearLayout box,String value,int size,boolean bold){TextView v=new TextView(this);v.setText(value);v.setTextSize(size);v.setTextColor(ink);v.setPadding(0,dp(5),0,dp(7));if(bold)v.setTypeface(null,Typeface.BOLD);box.addView(v);return v;}
  LinearLayout card(){LinearLayout c=new LinearLayout(this);c.setOrientation(1);c.setPadding(dp(16),dp(14),dp(16),dp(14));GradientDrawable background=new GradientDrawable();background.setColor(Color.WHITE);background.setCornerRadius(dp(18));c.setBackground(background);LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.topMargin=dp(16);page.addView(c,params);return c;}

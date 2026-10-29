@@ -1,16 +1,28 @@
 # Asterisk Assistant
 
-**Latest: 1.2.0** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+**Latest: 1.2.1** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
 
 Bundled AGI missing-name formatting fix, portable root-provider support, IPv6 Wi-Fi receive locks and optional Android 11–13 screen-off compatibility.
 
 [中文](README.md) · [Download APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-Version **1.2.0**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+Version **1.2.1**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
 
 1.2.0 fixes skipped number grouping when AGI represents a missing caller name as `unknown`, while preserving real contact names and caller privacy.
 
 Features include deployment, start/stop/restart, SIP accounts/passwords, connection state, ports, configuration/backups, logs, authentication/RTP echo self-tests, legacy migration/cleanup, boot startup and an optional wake lock.
+
+## Update 1.2.1
+
+Also fixes the corrupted launcher label and adds an adaptive server icon.
+
+The reproduced failure involved Android background restrictions, disabled MIUI autostart, and a readiness check accepting stale registration without a foreground service. Shortening the full-check interval alone was insufficient.
+
+The assistants now show a background-access setup prompt. After explicit confirmation, Root changes are limited to the assistant and its trusted paired gateway: background execution, battery-optimization exemption, and recognized MIUI autostart. Phone, microphone, notification, and Shizuku consent remain separate. Unsupported settings identify the failed step instead of incorrectly reporting missing Root.
+
+When monitoring is enabled, an approximately 10-second lightweight check detects a missing foreground service. Full checks retain the configured 1–1440-minute interval. Consented background settings may be repaired if restrictions return. Server and gateway recovery retain separate ownership, a shared repair lock, active-call guards and manual-OFF behavior. Recovery is not uninterrupted availability.
+
+The existing Asterisk dedicated-wake option now also controls a renewable, bounded root-monitor wake lease. Disabling it releases the lease. DDNS keeps its separate existing daemon and wake option.
 
 ## Independent recovery
 

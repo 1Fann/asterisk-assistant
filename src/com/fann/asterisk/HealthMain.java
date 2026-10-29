@@ -37,13 +37,17 @@ public final class HealthMain {
   if(!idle()){message="正在通话或无法确认通话状态，本轮跳过恢复";return;}
   String ip=RootBridge.run("ip -4 -o addr show wlan0",null,8);
   if(ip.isEmpty()){message="等待 Wi-Fi，本轮不重启服务器";return;}
+  if(!BackgroundAccess.repairAuthorized(context)){message="后台运行受限，请打开助手允许后台运行与自启动";return;}
   String owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
   boolean running=RootBridge.run(BASE+"/control.sh state",null,10).equals("running");
   if(!running||!owner.contains("isForeground=true")){
-   guard();RootBridge.run("am start-foreground-service -n com.fann.asterisk/.ManagerService --es action START",null,15);repaired=true;Thread.sleep(4000);
+   guard();phase="server_foreground";
+   try{RootBridge.run("am start-foreground-service --user 0 -n com.fann.asterisk/.ManagerService --es action START",null,15);}catch(IOException ignored){}
+   repaired=true;Thread.sleep(4000);
    owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
    if(!owner.contains("isForeground=true")){
     guard();RootBridge.run("am start -n com.fann.asterisk/.MainActivity",null,15);Thread.sleep(2000);
+    guard();RootBridge.run("am start-foreground-service --user 0 -n com.fann.asterisk/.ManagerService --es action START",null,15);Thread.sleep(2000);
    }
   }
   JSONObject snapshot=new JSONObject(RootBridge.run(BASE+"/control.sh status",null,15));

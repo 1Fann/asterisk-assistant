@@ -9,7 +9,7 @@ final class HealthMonitor {
  final MainActivity a;Switch enabled;EditText minutes;TextView status;Button save,now;boolean updating,busy,initialized;JSONObject last=new JSONObject();
  HealthMonitor(MainActivity activity){
   a=activity;LinearLayout card=a.card();a.text(card,"自动检查与恢复",18,true);
-  a.text(card,"独立检查 Asterisk、后台网络服务和实际 SIP 响应，异常时恢复。清理助手后台仍有效，开机首次解锁后恢复检查；通话时跳过修复，手动停止服务器后不拉起。必要时可能打开管理页。深度休眠可能延后检查。",13,false);
+  a.text(card,"每 10 秒检查后台服务是否退出；按下方间隔完整检查 Asterisk、后台网络服务和实际 SIP 响应，异常时恢复。清理助手后台仍有效，开机首次解锁后恢复检查；通话时跳过修复，手动停止服务器后不拉起。必要时可能打开管理页。深度休眠可能延后检查。",13,false);
   enabled=new Switch(a);enabled.setText("开启服务器自动检查与恢复");card.addView(enabled);
   enabled.setOnCheckedChangeListener((b,on)->{if(updating)return;updating=true;enabled.setChecked(!on);updating=false;configure(on);});
   a.text(card,"检查间隔（分钟，1–1440）",14,false);minutes=new EditText(a);minutes.setInputType(InputType.TYPE_CLASS_NUMBER);minutes.setSingleLine(true);minutes.setText("5");card.addView(minutes);

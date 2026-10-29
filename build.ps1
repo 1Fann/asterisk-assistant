@@ -26,7 +26,9 @@ try {
         & (Join-Path $javaBin 'keytool.exe') -genkeypair -keystore $key -storepass:env ASTERISK_SIGNING_PASSWORD -keypass:env ASTERISK_SIGNING_PASSWORD -alias asterisk-manager -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=Asterisk Assistant' -noprompt 2>&1 | Out-Null
         if($LASTEXITCODE){throw 'Signing key generation failed'}
     }
-    & (Join-Path $buildTools 'aapt2.exe') link --manifest (Join-Path $PSScriptRoot 'AndroidManifest.xml') -I (Join-Path $sdk 'platforms\android-35\android.jar') -o (Join-Path $output 'unsigned.apk')
+    & (Join-Path $buildTools 'aapt2.exe') compile --dir (Join-Path $PSScriptRoot 'res') -o (Join-Path $output 'resources.zip')
+    if($LASTEXITCODE){throw 'Resource compilation failed'}
+    & (Join-Path $buildTools 'aapt2.exe') link --manifest (Join-Path $PSScriptRoot 'AndroidManifest.xml') -I (Join-Path $sdk 'platforms\android-35\android.jar') (Join-Path $output 'resources.zip') -o (Join-Path $output 'unsigned.apk')
     if($LASTEXITCODE){throw 'Manifest packaging failed'}
     $classes=Join-Path $output 'classes'
     $dex=Join-Path $output 'dex'
@@ -47,9 +49,9 @@ try {
     if($LASTEXITCODE){throw 'Runtime asset packaging failed'}
     & (Join-Path $buildTools 'zipalign.exe') -f 4 (Join-Path $output 'unsigned.apk') (Join-Path $output 'aligned.apk')
     if($LASTEXITCODE){throw 'APK alignment failed'}
-    & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias asterisk-manager --ks-pass env:ASTERISK_SIGNING_PASSWORD --key-pass env:ASTERISK_SIGNING_PASSWORD --out (Join-Path $output 'Asterisk-Assistant-1.2.0.apk') (Join-Path $output 'aligned.apk')
+    & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias asterisk-manager --ks-pass env:ASTERISK_SIGNING_PASSWORD --key-pass env:ASTERISK_SIGNING_PASSWORD --out (Join-Path $output 'Asterisk-Assistant-1.2.1.apk') (Join-Path $output 'aligned.apk')
     if($LASTEXITCODE){throw 'APK signing failed'}
-    & (Join-Path $buildTools 'apksigner.bat') verify (Join-Path $output 'Asterisk-Assistant-1.2.0.apk')
+    & (Join-Path $buildTools 'apksigner.bat') verify (Join-Path $output 'Asterisk-Assistant-1.2.1.apk')
     if($LASTEXITCODE){throw 'APK verification failed'}
-    & (Join-Path $buildTools 'aapt2.exe') dump permissions (Join-Path $output 'Asterisk-Assistant-1.2.0.apk')
+    & (Join-Path $buildTools 'aapt2.exe') dump permissions (Join-Path $output 'Asterisk-Assistant-1.2.1.apk')
 }finally{Remove-Item Env:ASTERISK_SIGNING_PASSWORD -ErrorAction SilentlyContinue}

@@ -40,7 +40,7 @@ public class ManagerService extends Service {
   final String task=action;
   final boolean healthEnabled=intent!=null&&intent.getBooleanExtra("healthEnabled",false);
   final String healthMinutes=intent==null?null:intent.getStringExtra("healthMinutes");
-  if(task.equals("WAKE")){awake(getSharedPreferences("app",0).getBoolean("awake",false));return START_STICKY;}
+  if(task.equals("WAKE")){awake(getSharedPreferences("app",0).getBoolean("awake",false));worker.submit(()->{try{RootBridge.syncMonitorWake(this);}catch(Exception e){report("唤醒设置未同步，请重试");}});return START_STICKY;}
   if(busy){message="正在处理上一项操作";return START_STICKY;}
   busy=true;
   worker.submit(()->{try{
