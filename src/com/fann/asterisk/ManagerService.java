@@ -18,8 +18,12 @@ public class ManagerService extends Service {
  final java.util.concurrent.ExecutorService worker=Executors.newSingleThreadExecutor();
  PowerManager.WakeLock wake;
  WifiManager.MulticastLock multicast;
+ WifiManager.WifiLock receiveLock;
  void multicast(boolean enabled){
   if(multicast==null){WifiManager wifi=getApplicationContext().getSystemService(WifiManager.class);if(wifi==null)return;multicast=wifi.createMulticastLock("asterisk:ipv6-neighbor");multicast.setReferenceCounted(false);}
+  if(receiveLock==null){receiveLock=getApplicationContext().getSystemService(WifiManager.class).createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF,"asterisk:receive");receiveLock.setReferenceCounted(false);}
+  if(enabled&&!receiveLock.isHeld())receiveLock.acquire();
+  if(!enabled&&receiveLock.isHeld())receiveLock.release();
   if(enabled&&!multicast.isHeld())multicast.acquire();
   if(!enabled&&multicast.isHeld())multicast.release();
  }
@@ -41,7 +45,14 @@ public class ManagerService extends Service {
   busy=true;
   worker.submit(()->{try{
    report("正在准备…");RootBridge.stage(this);
-   if(task.equals("DEPLOY")){
+   if(task.equals("UPDATE")){
+    RootBridge.api("status",null);
+    if(RootBridge.run("test -f "+RootBridge.BASE+"/health-enabled && echo yes || true",null,5).equals("yes"))RootBridge.healthLaunch();
+    if(RootBridge.run(RootBridge.BASE+"/control.sh state",null,8).equals("running"))RootBridge.run(RootBridge.BASE+"/control.sh start",null,30);
+    report("运行组件与号码分段已更新；通话中的变更会延后生效");
+    getSharedPreferences("app",0).edit().putLong("runtimeStamp",RootBridge.runtimeStamp(this)).apply();
+    if(!RootBridge.run(RootBridge.BASE+"/control.sh state",null,8).equals("running")){stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
+   }else if(task.equals("DEPLOY")){
     awake(true);report("正在下载并验证 Ubuntu ARM64 运行环境…");File archive=download();report("正在安装 Asterisk，首次部署可能需要数分钟…");
     RootBridge.run(RootBridge.BASE+"/install.sh "+archive.getAbsolutePath()+" "+android.os.Process.myUid(),null,1800);
     RootBridge.run(RootBridge.BASE+"/control.sh start",null,40);getSharedPreferences("app",0).edit().putBoolean("autostart",true).apply();report("部署完成，服务器已启动");

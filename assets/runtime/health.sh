@@ -1,7 +1,11 @@
 #!/system/bin/sh
 # asterisk-app-owned: independent root monitor; no credentials or call audio logged.
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 umask 077
 [ -f "$BASE/.asterisk-app-owned" ] && [ -x "$BB" ] || exit 1
 # Android mksh marks numbered descriptors close-on-exec. Use flock's command form.

@@ -1,7 +1,11 @@
 #!/system/bin/sh
 set -eu
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 if [ "${ASTERISK_APP_NS:-0}" != 1 ]; then
   exec "$BB" unshare -m --propagation private /system/bin/sh -c 'export ASTERISK_APP_NS=1; exec /system/bin/sh /data/adb/asterisk-app/enter.sh "$@"' asterisk-app "$@"
 fi

@@ -54,6 +54,19 @@ context=clients
         self.assertIn('Goto(gateway-test,${EXTEN},1)',(api.C/'extensions.conf').read_text())
         self.assertTrue((callerid.BUNDLE/callerid.WHEEL).is_file())
         self.assertIn('load=func_callerid.so',(api.C/'modules.conf').read_text())
+        self.assertIn('load=res_pjsip_caller_id.so',(api.C/'modules.conf').read_text())
+
+    def test_live_missing_identity_module_is_loaded_before_success(self):
+        loaded={'res_agi.so'}
+        def command(cmd):
+            if cmd=='core show uptime':return 'up'
+            if cmd=='core show channels count':return '0 active calls'
+            if cmd.startswith('module load '):loaded.add(cmd.split()[-1]);return ''
+            if cmd.startswith('module show like '):return 'Running' if cmd.split()[-1] in loaded else ''
+            return ''
+        api.cli=command
+        self.assertFalse(callerid.prepare(api)['pending'])
+        self.assertIn('res_pjsip_caller_id.so',loaded)
 
     def test_idempotent_and_ui_settings(self):
         callerid.prepare(api)

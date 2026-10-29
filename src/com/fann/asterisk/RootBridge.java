@@ -6,6 +6,14 @@ import java.util.concurrent.TimeUnit;
 import org.json.JSONObject;
 
 final class RootBridge {
+ static long runtimeStamp(Context c){try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).lastUpdateTime;}catch(Exception e){return -1;}}
+ static String busybox()throws Exception{
+  String command="for p in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do if [ -x \"$p\" ]; then echo \"$p\"; exit 0; fi; done; exit 20";
+  String path=run(command,null,8);
+  if(!path.matches("/data/adb/(magisk|ksu/bin|ap/bin)/busybox"))throw new IOException("需要 Root 管理器提供 BusyBox；请检查 Magisk、KernelSU 或 APatch 安装");
+  return path;
+ }
+
  static final String BASE="/data/adb/asterisk-app";
  static final String CERT="b7f7a97088b3860cfbdd1935e82a5409151fdac10057f5c22138091395f8b26d";
  static synchronized String run(String command, JSONObject input, int seconds) throws Exception {
@@ -47,6 +55,10 @@ final class RootBridge {
   File wheel=new File(directory,"phonenumberslite-9.0.42-py2.py3-none-any.whl");if(!hash(wheel).equals("7ae0a97b12e9f0749e7bed2c9c3da4df43648ea5ba021de86b36088d98a0915e"))throw new IOException("内置号码库校验失败");
   String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; cp "+source+"/* "+BASE+"/; chmod 700 "+BASE+"/*.sh; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh; chmod 700 /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; cp "+BASE+"/*.py "+BASE+"/*.whl "+BASE+"/run.sh "+BASE+"/rootfs/opt/asterisk-app/; fi; echo ready";
   run(command,null,30);
+  // First-install default for tested Android 11-13; preserve an explicit opt-out.
+  if(android.os.Build.VERSION.SDK_INT<=33)run("if [ ! -f "+BASE+"/wifi-compat.configured ]; then touch "+BASE+"/wifi-compat.enabled "+BASE+"/wifi-compat.configured; fi",null,8);
+  // Retire only our old migration hook. The APK now starts the same owned worker.
+  run("if [ -f /data/adb/service.d/98-asterisk-wifi-compat.sh ] && grep -q 'Local Android 13 restore compatibility' /data/adb/service.d/98-asterisk-wifi-compat.sh; then rm /data/adb/service.d/98-asterisk-wifi-compat.sh; fi",null,8);
   run("umask 077; printf '%s\\n' "+apkHash+" > "+BASE+"/health-helper.sha256",null,10);
  }
  static void verifySelf(Context c)throws Exception{
@@ -62,7 +74,7 @@ final class RootBridge {
   run("set -eu; umask 077; printf '%s\\n' "+minutes+" > "+BASE+"/health-minutes.tmp; mv "+BASE+"/health-minutes.tmp "+BASE+"/health-minutes; "+(on?"touch "+BASE+"/health-enabled "+BASE+"/health-now":"rm -f "+BASE+"/health-enabled "+BASE+"/health-now"),null,10);
   if(on)healthLaunch();
  }
- static void healthLaunch()throws Exception{run("/data/adb/ksu/bin/busybox setsid /system/bin/sh "+BASE+"/health.sh loop </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &",null,10);}
+ static void healthLaunch()throws Exception{run(busybox()+" setsid /system/bin/sh "+BASE+"/health.sh loop </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &",null,10);}
  static void healthNow(Context c)throws Exception{
   stage(c);if(!run("test -f "+BASE+"/health-enabled && echo on || true",null,5).equals("on"))throw new IOException("请先开启自动检查与恢复");
   run("touch "+BASE+"/health-now",null,5);healthLaunch();

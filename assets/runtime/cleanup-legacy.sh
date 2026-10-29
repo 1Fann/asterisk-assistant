@@ -2,7 +2,11 @@
 set -eu
 BASE=/data/adb/asterisk-app
 OLD=/data/adb/sip-pbx
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 [ -f "$BASE/.asterisk-app-owned" ] && [ -f "$BASE/migration-verified" ] || { echo migration_not_verified; exit 1; }
 [ "$("$BASE/control.sh" state)" = running ] || exit 1
 [ -f "$BASE/rootfs/etc/asterisk-app/selftest-passed" ] || { echo selftest_required; exit 1; }

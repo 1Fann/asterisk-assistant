@@ -2,7 +2,11 @@
 set -eu
 umask 077
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 ARCHIVE=${1:?archive}
 APP_UID=${2:?uid}
 [ -f "$BASE/.asterisk-app-owned" ] || { echo 'unmanaged_directory'; exit 1; }

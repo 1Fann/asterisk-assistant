@@ -22,6 +22,7 @@ jobs:
           python3 tools/callerid-format/download_dependency.py
           python3 tools/callerid-format/check_format.py
           python3 tests/check_callerid_runtime.py
+          python3 tests/check_agi_empty_name.py
           mkdir -p .work/policy
           javac -d .work/policy src/com/fann/asterisk/HealthPolicy.java tests/HealthPolicyChecks.java
           java -cp .work/policy com.fann.asterisk.HealthPolicyChecks

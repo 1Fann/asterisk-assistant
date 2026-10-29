@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import sys
 
-VERSION = '1.1.2'
+VERSION = '1.2.0'
 WHEEL = 'phonenumberslite-9.0.42-py2.py3-none-any.whl'
 WHEEL_SHA = '7ae0a97b12e9f0749e7bed2c9c3da4df43648ea5ba021de86b36088d98a0915e'
 BUNDLE = Path('/usr/local/lib/asterisk-callerid')
@@ -124,7 +124,7 @@ def prepare(api, desired=None):
     ext, pjsip, routes = plan(api, config)
     modules = (api.C/'modules.conf').read_text()
     new_modules = modules
-    for name in ['res_speech.so', 'res_agi.so', 'func_callerid.so']:
+    for name in ['res_speech.so', 'res_agi.so', 'func_callerid.so', 'res_pjsip_caller_id.so']:
         if not re.search(r'(?m)^\s*load\s*=\s*'+re.escape(name)+r'\s*$', new_modules):
             new_modules = new_modules.rstrip()+'\nload='+name+'\n'
     BUNDLE.mkdir(parents=True, exist_ok=True); os.chmod(BUNDLE, 0o755)
@@ -133,10 +133,12 @@ def prepare(api, desired=None):
     public_settings = {k: config[k] for k in ('enabled', 'default_region')}
     public_file(BUNDLE/'settings.json', (json.dumps(public_settings)+'\n').encode(), 0o644)
     if running:
-        for name in ['res_speech.so', 'res_agi.so', 'func_callerid.so']:
+        for name in ['res_speech.so', 'res_agi.so', 'func_callerid.so', 'res_pjsip_caller_id.so']:
             if 'Running' not in api.cli('module show like '+name): api.cli('module load '+name)
         if 'Running' not in api.cli('module show like res_agi.so'):
             raise ValueError('号码分段模块加载失败，请重启服务器后重试')
+        if 'Running' not in api.cli('module show like res_pjsip_caller_id.so'):
+            raise ValueError('SIP 来电身份模块未就绪，请重启服务器后重试')
     changed = []
     for name, content in [('modules.conf', new_modules), ('extensions.conf', ext), ('pjsip.conf', pjsip)]:
         path = api.C/name

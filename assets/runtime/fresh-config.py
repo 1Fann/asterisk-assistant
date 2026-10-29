@@ -55,6 +55,7 @@ load=res_pjsip_authenticator_digest.so
 load=res_pjsip_endpoint_identifier_user.so
 load=res_pjsip_registrar.so
 load=res_pjsip_session.so
+load=res_pjsip_caller_id.so
 load=res_pjsip_sdp_rtp.so
 load=res_pjsip_outbound_authenticator_digest.so
 load=res_pjsip_pubsub.so

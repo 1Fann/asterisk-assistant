@@ -1,7 +1,11 @@
 #!/system/bin/sh
 set -eu
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 R=$BASE/rootfs
 running() {
   [ -r "$R/run/asterisk/asterisk.pid" ] || return 1
@@ -36,6 +40,9 @@ case "${1:-status}" in
       running || { echo start_failed; exit 1; }
     fi
     "$BB" setsid /system/bin/sh "$BASE/supervisor.sh" </dev/null >"$BASE/supervisor.log" 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
+    if [ -f "$BASE/wifi-compat.enabled" ]; then
+      "$BB" setsid /system/bin/sh "$BASE/wifi-compat.sh" loop </dev/null >/dev/null 2>&1 &
+    fi
     echo running
     ;;
   stop)

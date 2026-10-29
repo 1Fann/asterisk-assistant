@@ -1,6 +1,10 @@
 #!/system/bin/sh
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 [ -f "$BASE/installed" ] || exit 0
 [ "$(cat "$BASE/autostart" 2>/dev/null)" = 1 ] || [ -f "$BASE/health-enabled" ] || exit 0
 if [ "${1:-}" != --worker ]; then

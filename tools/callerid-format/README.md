@@ -1,10 +1,10 @@
 # 来电号码分段 / Incoming number grouping
 
-推荐使用 Asterisk 助手 1.1.2：号码分段和号码库已内置 APK，App 自动部署，提供开关和默认地区设置。本目录保留旧版独立部署工具，供备用或维护使用。
+推荐使用 Asterisk 助手 1.2.0：号码分段和号码库已内置 APK，App 自动部署，提供开关和默认地区设置。本目录保留旧版独立部署工具，供备用或维护使用。
 
 以下步骤适用于独立部署工具，不是使用新版 App 的必要步骤。
 
-Asterisk Assistant 1.1.2 now bundles and deploys this feature with visual settings.
+Asterisk Assistant 1.2.0 now bundles and deploys this feature with visual settings.
 The following standalone tools are retained as an optional legacy fallback;
 they are not required when using the new app.
 

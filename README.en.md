@@ -1,8 +1,14 @@
 # Asterisk Assistant
 
+**Latest: 1.2.0** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+
+Bundled AGI missing-name formatting fix, portable root-provider support, IPv6 Wi-Fi receive locks and optional Android 11–13 screen-off compatibility.
+
 [中文](README.md) · [Download APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-Version **1.1.2**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+Version **1.2.0**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+
+1.2.0 fixes skipped number grouping when AGI represents a missing caller name as `unknown`, while preserving real contact names and caller privacy.
 
 Features include deployment, start/stop/restart, SIP accounts/passwords, connection state, ports, configuration/backups, logs, authentication/RTP echo self-tests, legacy migration/cleanup, boot startup and an optional wake lock.
 
@@ -12,7 +18,7 @@ Opt-in root monitoring has a1–1440 minute interval (default5), immediate check
 
 ## Use
 
-Android12+, ARM64, Root,1GB free space and `/data/adb/ksu/bin/busybox` are required. Grant Root and notifications, deploy, and read locally generated account credentials in the app. Fresh defaults: client1001, gateway2001, SIP UDP16060, RTP22000–22019 and echo600. Migrated deployments retain their settings. Fresh deployment does not enable cellular calling routes. No router changes or cloud credential upload. Runtime: `/data/adb/asterisk-app`; native Asterisk runs under the app's ordinary UID.
+Android12+, ARM64, Root,1GB free space and a supported root-manager BusyBox are required (Magisk, KernelSU/BakaSU or APatch path discovery). Grant Root and notifications, deploy, and read locally generated account credentials in the app. Fresh defaults: client1001, gateway2001, SIP UDP16060, RTP22000–22019 and echo600. Migrated deployments retain their settings. Fresh deployment does not enable cellular calling routes. No router changes or cloud credential upload. Runtime: `/data/adb/asterisk-app`; native Asterisk runs under the app's ordinary UID.
 
 ## Built-in incoming number grouping (1.1.2)
 

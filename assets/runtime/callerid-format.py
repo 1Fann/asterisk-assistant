@@ -89,8 +89,19 @@ def main():
         if not options.get('enabled', True):
             return
         region = options.get('default_region', 'CN')
-    formatted = format_display(env.get('agi_callerid', ''),
-                               env.get('agi_calleridname', ''), region)
+    name = env.get('agi_calleridname', '')
+    if name == 'unknown':
+        # AGI uses this sentinel for an absent name. Query the real value so a
+        # literal contact named "unknown" still keeps its actual display name.
+        reply = command('GET FULL VARIABLE ${CALLERID(name)}')
+        match = re.fullmatch(r'200 result=1 \((.*)\)', reply)
+        if match:
+            name = match.group(1)
+        elif reply == '200 result=0':
+            name = ''
+        else:
+            raise RuntimeError('AGI name lookup failed')
+    formatted = format_display(env.get('agi_callerid', ''), name, region)
     if formatted is not None:
         # The allowlist above excludes quotes, newlines and AGI/SIP syntax.
         command('SET VARIABLE CALLERID(name) "' + formatted + '"')

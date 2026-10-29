@@ -2,7 +2,11 @@
 set -eu
 umask 077
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 R=$BASE/rootfs
 phase() { printf '{"phase":"%s","percent":%s}\n' "$1" "$2" > "$BASE/progress.json"; echo "PHASE:$1"; }
 trap 'phase failed 0' EXIT

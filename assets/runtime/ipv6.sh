@@ -1,7 +1,11 @@
 #!/system/bin/sh
 # Select a single, non-temporary global-unicast Wi-Fi address; never fall back to privacy addresses.
 BASE=/data/adb/asterisk-app
-BB=/data/adb/ksu/bin/busybox
+BB=
+for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+  if [ -x "$candidate" ]; then BB=$candidate; break; fi
+done
+[ -n "$BB" ] || { echo busybox_missing; exit 20; }
 addresses=$(ip -6 -o addr show dev wlan0 scope global 2>/dev/null | "$BB" awk '
  /(^|[[:space:]])(temporary|tentative|deprecated|dadfailed)([[:space:]]|$)/ {next}
  /preferred_lft 0sec/ {next}

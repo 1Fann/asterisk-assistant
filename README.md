@@ -1,8 +1,14 @@
 # Asterisk 助手 / Asterisk Assistant
 
+**Latest: 1.2.0** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+
+内置 AGI 空姓名号码分段修复；跨 Root 管理器部署；公网 IPv6 Wi-Fi 接收锁及可关闭的 Android 11–13 息屏兼容，替代迁移时的外置补丁。
+
 [English](README.en.md) · [下载 APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-在已 Root 的 ARM64 Android 手机上，一键部署并可视化管理 Asterisk SIP 服务器。当前版本 **1.1.2**。这是社区原创管理 App，使用 Ubuntu 软件源的 Asterisk，未修改服务器核心源码。无需 Termux。
+在已 Root 的 ARM64 Android 手机上，一键部署并可视化管理 Asterisk SIP 服务器。当前版本 **1.2.0**。这是社区原创管理 App，使用 Ubuntu 软件源的 Asterisk，未修改服务器核心源码。无需 Termux。
+
+1.2.0 修复空主叫名称在 AGI 中表示为 `unknown` 时跳过号码分段的问题；仍保留真实联系人姓名及号码隐藏设置。
 
 - 一键下载安装经校验的运行环境；启动、停止、重启。
 - SIP 账号、密码、连接状态、端口、拨号配置和备份管理。
@@ -17,7 +23,7 @@
 
 ## 使用
 
-1. 安装 APK，允许通知并授予 Root。需要 Android12+、ARM64、约1GB空间，以及 `/data/adb/ksu/bin/busybox`；当前已在 BakaSU/联发科红米上测试。
+1. 安装 APK，允许通知并授予 Root。需要 Android12+、ARM64、约1GB空间，以及 Root 管理器提供的 BusyBox（自动识别 Magisk、KernelSU/BakaSU、APatch 路径）；已在 Android 13 / Magisk 红米和此前 BakaSU 红米上验证相关部署。
 2. 点击“一键部署 Asterisk”。初始客户端账号1001、网关账号2001，密码由本机随机生成。
 3. 从“账号与连接方式”读取本机连接参数。初始 SIP UDP16060、RTP22000–22019，可在界面修改；迁移安装以界面实际值为准。
 4. SIP 客户端拨600验证回声。初始安装不会自动添加真实蜂窝呼出路由。
