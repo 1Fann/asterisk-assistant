@@ -9,7 +9,7 @@ final class HealthMonitor {
  final MainActivity a;Switch enabled;EditText minutes;TextView status;Button save,now;boolean updating,busy,initialized;JSONObject last=new JSONObject();
  HealthMonitor(MainActivity activity){
   a=activity;LinearLayout card=a.card();a.text(card,"自动检查与恢复",18,true);
-  a.text(card,"每 10 秒检查后台服务是否退出；按下方间隔完整检查 Asterisk、后台网络服务和实际 SIP 响应，异常时恢复。清理助手后台仍有效，开机首次解锁后恢复检查；通话时跳过修复，手动停止服务器后不拉起。必要时可能打开管理页。深度休眠可能延后检查。",13,false);
+  a.text(card,"每秒检查服务器与守护进程是否退出，异常退出时优先快速恢复；每 10 秒确认前台服务，按下方间隔完整检查后台网络与实际 SIP 响应。清理助手后台仍有效，开机首次解锁后恢复检查；通话中或状态不明时暂停修复，手动停止后不拉起。必要时可能打开管理页，深度休眠或网络异常可能延后恢复。",13,false);
   enabled=new Switch(a);enabled.setText("开启服务器自动检查与恢复");card.addView(enabled);
   enabled.setOnCheckedChangeListener((b,on)->{if(updating)return;updating=true;enabled.setChecked(!on);updating=false;configure(on);});
   a.text(card,"检查间隔（分钟，1–1440）",14,false);minutes=new EditText(a);minutes.setInputType(InputType.TYPE_CLASS_NUMBER);minutes.setSingleLine(true);minutes.setText("5");card.addView(minutes);
@@ -24,6 +24,6 @@ final class HealthMonitor {
  }
  void refresh(){if(busy)return;a.async(()->RootBridge.healthStatus().toString(),s->{try{render(new JSONObject(s),false);}catch(Exception ignored){}});}
  void render(JSONObject data,boolean saved){last=data;updating=true;enabled.setChecked(data.optBoolean("enabled"));updating=false;if(!initialized||saved||!minutes.hasFocus())minutes.setText(Integer.toString(data.optInt("minutes",5)));initialized=true;
-  String text=data.optBoolean("enabled")?"每 "+data.optInt("minutes",5)+" 分钟检查一次":"自动检查已关闭";long time=data.optLong("checkedAt");if(time>0)text+="\n上次检查："+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(new Date(time))+"\n"+data.optString("message");status.setText(text);
+  String text=data.optBoolean("enabled")?"每秒检查进程 · 每 "+data.optInt("minutes",5)+" 分钟完整检查":"自动检查已关闭";long time=data.optLong("checkedAt");if(time>0)text+="\n上次检查："+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(new Date(time))+"\n"+data.optString("message");status.setText(text);
  }
 }

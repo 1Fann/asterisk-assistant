@@ -31,6 +31,18 @@ public class ManagerService extends Service {
   JSONObject s=RootBridge.api("status",null),p=s.optJSONObject("publicIpv6");
   multicast(s.optBoolean("running")&&p!=null&&p.optBoolean("enabled"));
  }
+ String recoveryOwnerState()throws Exception{
+  return RootBridge.run("if [ ! -f "+RootBridge.BASE+"/installed ] || [ -f "+RootBridge.BASE+"/disabled ]; then echo stopped; elif [ ! -f "+RootBridge.BASE+"/health-enabled ]; then echo paused; else "+RootBridge.BASE+"/control.sh state; fi",null,10);
+ }
+ void syncAfterRecovery(int startId)throws Exception{
+  String state=recoveryOwnerState();
+  if(state.equals("paused"))return; // Disabling monitoring alone must not stop a running server.
+  if(state.equals("running")){
+   awake(getSharedPreferences("app",0).getBoolean("awake",false));syncNetworkLock();
+   state=recoveryOwnerState();
+  }
+  if(state.equals("stopped")){awake(false);multicast(false);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf(startId);}
+ }
  public void onCreate(){super.onCreate();NotificationManager manager=getSystemService(NotificationManager.class);manager.createNotificationChannel(new NotificationChannel("server","SIP 服务器",NotificationManager.IMPORTANCE_LOW));notice("服务器管理已启动");}
  void notice(String text){Intent intent=new Intent(this,MainActivity.class);PendingIntent pending=PendingIntent.getActivity(this,0,intent,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);Notification n=new Notification.Builder(this,"server").setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle("Asterisk 助手").setContentText(text).setContentIntent(pending).setOngoing(true).build();startForeground(10,n);}
  void report(String text){message=text;getSharedPreferences("app",0).edit().putString("message",text).apply();notice(text);}
@@ -41,10 +53,16 @@ public class ManagerService extends Service {
   final boolean healthEnabled=intent!=null&&intent.getBooleanExtra("healthEnabled",false);
   final String healthMinutes=intent==null?null:intent.getStringExtra("healthMinutes");
   if(task.equals("WAKE")){awake(getSharedPreferences("app",0).getBoolean("awake",false));worker.submit(()->{try{RootBridge.syncMonitorWake(this);}catch(Exception e){report("唤醒设置未同步，请重试");}});return START_STICKY;}
+  if(task.equals("SYNC_RUNTIME")){
+   // The verified root monitor already restored the engine. This request may only
+   // synchronize existing locks; a delayed request must never clear manual STOP.
+   worker.submit(()->{try{syncAfterRecovery(startId);}catch(Exception ignored){message="运行锁状态同步未完成，请刷新检查";}});
+   return START_STICKY;
+  }
   if(busy){message="正在处理上一项操作";return START_STICKY;}
   busy=true;
   worker.submit(()->{try{
-   report("正在准备…");RootBridge.stage(this);
+   report("正在准备…");if(task.equals("START")||task.equals("BOOT"))RootBridge.ensureStaged(this);else RootBridge.stage(this);
    if(task.equals("UPDATE")){
     RootBridge.api("status",null);
     if(RootBridge.run("test -f "+RootBridge.BASE+"/health-enabled && echo yes || true",null,5).equals("yes"))RootBridge.healthLaunch();
@@ -67,7 +85,8 @@ public class ManagerService extends Service {
    }else if(task.equals("STOP")){
     RootBridge.run(RootBridge.BASE+"/control.sh stop",null,35);report("服务器已停止");awake(false);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
    }else if(task.equals("BOOT")){
-    if(getSharedPreferences("app",0).getBoolean("autostart",true)){RootBridge.run(RootBridge.BASE+"/control.sh start",null,40);report("服务器已自动启动");}else{stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
+    boolean manuallyStopped=RootBridge.run("test -f "+RootBridge.BASE+"/disabled && echo yes || true",null,8).equals("yes");
+    if(getSharedPreferences("app",0).getBoolean("autostart",true)&&!manuallyStopped){RootBridge.run(RootBridge.BASE+"/control.sh start",null,40);report("服务器已自动启动");}else{stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
    }else if(task.equals("START")||task.equals("RESTART")){
     RootBridge.run(RootBridge.BASE+"/control.sh "+(task.equals("START")?"start":"restart"),null,65);report("服务器运行中");
    }else throw new IOException("未知操作");

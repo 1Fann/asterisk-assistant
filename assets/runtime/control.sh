@@ -7,6 +7,31 @@ for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap
 done
 [ -n "$BB" ] || { echo busybox_missing; exit 20; }
 R=$BASE/rootfs
+# Serialize native launch/stop. STOP publishes its intent before waiting so an
+# automatic recovery still preparing its network cannot undo a manual stop.
+case "${1:-status}" in
+ start|recover|stop)
+  [ "$1" != stop ] || touch "$BASE/disabled"
+  # mksh closes numbered descriptors on exec; BusyBox ash retains our lock FD.
+  exec "$BB" ash "$0" --acquire "$1"
+  ;;
+ --acquire)
+  case "${2:-}" in start|recover|stop) ;; *) exit 2;; esac
+  exec 9>"$BASE/start-stop.lock"
+  # Magisk's flock has no -w. Its timeout helper can retain inherited locks, so
+  # retry only nonblocking acquisition; sleeping descendants cannot retain FD 9.
+  LOCK_WAIT=0
+  until "$BB" flock -n 9; do
+   [ "$LOCK_WAIT" -lt 20 ] || { echo control_busy; exit 1; }
+   LOCK_WAIT=$((LOCK_WAIT + 1))
+   sleep 1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+  done
+  set -- "--locked-$2"
+  ;;
+esac
+automatic_allowed() {
+ [ -f "$BASE/health-enabled" ] && [ -f "$BASE/background-authorized" ] && [ ! -f "$BASE/disabled" ]
+}
 running() {
   [ -r "$R/run/asterisk/asterisk.pid" ] || return 1
   PBX_PID=$(cat "$R/run/asterisk/asterisk.pid" 2>/dev/null) || return 1
@@ -24,33 +49,42 @@ case "${1:-status}" in
     mv "$R/etc/asterisk-app/lan-ipv6.tmp" "$R/etc/asterisk-app/lan-ipv6"
     ;;
   state) if running; then echo running; else echo stopped; fi;;
-  start)
+  --locked-start|--locked-recover)
+    AUTOMATIC=0; [ "$1" != --locked-recover ] || AUTOMATIC=1
+    if [ "$AUTOMATIC" = 1 ]; then automatic_allowed || { echo recovery_paused; exit 1; }; fi
     [ -f "$BASE/installed" ] || { echo not_installed; exit 1; }
     REAL_UID=$(cmd package list packages -U com.fann.asterisk 2>/dev/null | "$BB" awk '$1=="package:com.fann.asterisk" {split($2,a,":"); print a[2]}')
     [ -n "$REAL_UID" ] && [ "$REAL_UID" = "$(cat "$R/etc/asterisk-app/android-uid")" ] || { echo uid_mismatch; exit 1; }
-    rm -f "$BASE/disabled"
+    if [ "$AUTOMATIC" = 0 ]; then rm -f "$BASE/disabled"; fi
     if ! running; then
       IP=$(ip -4 -o addr show wlan0 | "$BB" awk '{split($4,a,"/"); print a[1]; exit}')
       [ -n "$IP" ] || { echo wifi_not_ready; exit 1; }
       printf '%s\n' "$IP" > "$R/etc/asterisk-app/lan-ip"
       "$BASE/control.sh" network-state
-      "$BASE/enter.sh" /usr/bin/python3 /opt/asterisk-app/api.py network >/dev/null
+      . "$BASE/network-cache.sh"
+      prepare_network
+      if [ "$AUTOMATIC" = 1 ]; then automatic_allowed || { echo recovery_paused; exit 1; }; fi
       "$BB" setsid "$BASE/enter.sh" /bin/sh /opt/asterisk-app/run.sh </dev/null >"$BASE/console.log" 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
-      sleep 3
+      # Preserve the three-second launch allowance, returning as soon as its
+      # verified process exists. HealthMain still checks actual SIP responses.
+      n=0
+      while ! running && [ "$n" -lt 12 ]; do
+        sleep 0.25 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; n=$((n+1))
+      done
       running || { echo start_failed; exit 1; }
     fi
     "$BB" setsid /system/bin/sh "$BASE/supervisor.sh" </dev/null >"$BASE/supervisor.log" 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
     if [ -f "$BASE/wifi-compat.enabled" ]; then
-      "$BB" setsid /system/bin/sh "$BASE/wifi-compat.sh" loop </dev/null >/dev/null 2>&1 &
+      "$BB" setsid /system/bin/sh "$BASE/wifi-compat.sh" loop </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
     fi
     echo running
     ;;
-  stop)
+  --locked-stop)
     touch "$BASE/disabled"
     if running; then
       kill -TERM "$PBX_PID"
       n=0
-      while running && [ "$n" -lt 15 ]; do sleep 1; n=$((n+1)); done
+      while running && [ "$n" -lt 15 ]; do sleep 1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; n=$((n+1)); done
       if running; then echo stop_timeout; exit 1; fi
     fi
     echo stopped

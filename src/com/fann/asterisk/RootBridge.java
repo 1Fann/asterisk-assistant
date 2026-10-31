@@ -17,15 +17,18 @@ final class RootBridge {
  static final String BASE="/data/adb/asterisk-app";
  static final String CERT="b7f7a97088b3860cfbdd1935e82a5409151fdac10057f5c22138091395f8b26d";
  static synchronized String run(String command, JSONObject input, int seconds) throws Exception {
-  Process p=(android.os.Process.myUid()==0?new ProcessBuilder("/system/bin/sh","-c",command):new ProcessBuilder("su","-M","-c",command)).redirectErrorStream(true).start();
+  boolean root=android.os.Process.myUid()==0;
+  Process p=(root?new ProcessBuilder("/system/bin/sh","-c",command):new ProcessBuilder("su","-M","-c",command)).redirectErrorStream(true).start();
   ByteArrayOutputStream out=new ByteArrayOutputStream();
   Thread reader=new Thread(()->{try{byte[] b=new byte[8192];int n;while((n=p.getInputStream().read(b))!=-1){if(out.size()<1048576)out.write(b,0,n);}}catch(Exception ignored){}});
   reader.start();
   try(OutputStream stdin=p.getOutputStream()){if(input!=null)stdin.write(input.toString().getBytes("UTF-8"));}
-  if(!p.waitFor(seconds,TimeUnit.SECONDS)){p.destroyForcibly();throw new IOException("操作超时，请刷新查看状态");}
+  int code;
+  if(root)code=ProcessExit.await(p,seconds,TimeUnit.SECONDS);
+  else{if(!p.waitFor(seconds,TimeUnit.SECONDS)){p.destroyForcibly();throw new IOException("操作超时，请刷新查看状态");}code=p.exitValue();}
   reader.join(3000);
   String value=out.toString("UTF-8").trim();
-  if(p.exitValue()!=0){
+  if(code!=0){
    JSONObject result=parse(value);
    if(result!=null)throw new IOException(result.optString("error","操作失败"));
    if(value.endsWith("start_failed"))throw new IOException("服务器启动失败，请查看运行日志或重新部署修复");
@@ -44,18 +47,47 @@ final class RootBridge {
   if(!result.optBoolean("ok"))throw new IOException(result.optString("error","操作失败"));
   return result;
  }
- static void stage(Context context)throws Exception{
+ static synchronized void ensureStaged(Context context)throws Exception{
+  // A matching package timestamp never substitutes for the signing check.
+  verifySelf(context);
+  android.content.SharedPreferences prefs=context.getSharedPreferences("app",0);
+  String manifest=prefs.getString("runtimeCacheManifest","");
+  if(RuntimeStageCache.eligible(runtimeStamp(context),prefs.getLong("runtimeCacheStamp",0),manifest)){
+   try{if(run(RuntimeStageCache.verificationCommand(BASE,"/data/adb/service.d/97-asterisk-app.sh",manifest)+monitorWakeCommand(context),null,10).equals("valid"))return;}
+   catch(Exception invalid){/* Missing, changed or unreadable runtime: repair through the normal stage. */}
+  }
+  stage(context);
+ }
+ static synchronized boolean stagedRuntimeValid(Context context)throws Exception{
+  return stagedRuntimeStatus(context).equals("valid");
+ }
+ static synchronized String stagedRuntimeStatus(Context context)throws Exception{
+  // Read-only fast recovery: a cache miss must go through ManagerService's normal stage.
+  verifySelf(context);
+  android.content.SharedPreferences prefs=context.getSharedPreferences("app",0);
+  String manifest=prefs.getString("runtimeCacheManifest","");
+  if(manifest.isEmpty())return "manifest_missing";
+  if(!RuntimeStageCache.eligible(runtimeStamp(context),prefs.getLong("runtimeCacheStamp",0),manifest))return "package_stamp_changed";
+  try{return run(RuntimeStageCache.verificationCommand(BASE,"/data/adb/service.d/97-asterisk-app.sh",manifest),null,10).equals("valid")?"valid":"runtime_mismatch";}
+  catch(IOException invalid){return "runtime_mismatch";}
+ }
+ static synchronized void stage(Context context)throws Exception{
   String installedMonitor=run("sha256sum "+BASE+"/health.sh 2>/dev/null | cut -d ' ' -f 1 || true",null,8);
 
-  verifySelf(context);String apkHash=hash(new File(context.getApplicationInfo().sourceDir));
+  verifySelf(context);long stamp=runtimeStamp(context);String apkHash=hash(new File(context.getApplicationInfo().sourceDir));
+  // Invalidate before any replacement so a failed or interrupted deployment cannot be cached.
+  context.getSharedPreferences("app",0).edit().remove("runtimeCacheStamp").remove("runtimeCacheManifest").commit();
+  java.util.Map<String,String> hashes=new java.util.TreeMap<>();
   File directory=new File(context.getFilesDir(),"runtime");directory.mkdirs();
   for(String name:context.getAssets().list("runtime")){
-   if(!name.matches("[a-z0-9][a-z0-9-]*\\.(sh|py)")&&!name.equals("phonenumberslite-9.0.42-py2.py3-none-any.whl"))continue;
+   if(!RuntimeStageCache.assetName(name))continue;
    try(InputStream in=context.getAssets().open("runtime/"+name);OutputStream out=new FileOutputStream(new File(directory,name))){byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}
+   hashes.put(name,hash(new File(directory,name)));
   }
   String source=directory.getAbsolutePath();
   File wheel=new File(directory,"phonenumberslite-9.0.42-py2.py3-none-any.whl");if(!hash(wheel).equals("7ae0a97b12e9f0749e7bed2c9c3da4df43648ea5ba021de86b36088d98a0915e"))throw new IOException("内置号码库校验失败");
-  String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; cp "+source+"/* "+BASE+"/; chmod 700 "+BASE+"/*.sh; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh; chmod 700 /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; cp "+BASE+"/*.py "+BASE+"/*.whl "+BASE+"/run.sh "+BASE+"/rootfs/opt/asterisk-app/; fi; echo ready";
+  // Atomic replacement keeps already-running shell/Python readers on intact files.
+  String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; for file in "+source+"/*; do name=${file##*/}; cp \"$file\" "+BASE+"/$name.new.$$; chmod 700 "+BASE+"/$name.new.$$; mv -f "+BASE+"/$name.new.$$ "+BASE+"/$name; done; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh.new.$$; chmod 700 /data/adb/service.d/97-asterisk-app.sh.new.$$; mv -f /data/adb/service.d/97-asterisk-app.sh.new.$$ /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; for file in "+BASE+"/*.py "+BASE+"/*.whl "+BASE+"/run.sh; do name=${file##*/}; cp \"$file\" "+BASE+"/rootfs/opt/asterisk-app/$name.new.$$; chmod 644 "+BASE+"/rootfs/opt/asterisk-app/$name.new.$$; mv -f "+BASE+"/rootfs/opt/asterisk-app/$name.new.$$ "+BASE+"/rootfs/opt/asterisk-app/$name; done; fi; echo ready";
   run(command,null,30);
   // First-install default for tested Android 11-13; preserve an explicit opt-out.
   if(android.os.Build.VERSION.SDK_INT<=33)run("if [ ! -f "+BASE+"/wifi-compat.configured ]; then touch "+BASE+"/wifi-compat.enabled "+BASE+"/wifi-compat.configured; fi",null,8);
@@ -65,13 +97,24 @@ final class RootBridge {
   syncMonitorWake(context);
   String currentMonitor=run("sha256sum "+BASE+"/health.sh | cut -d ' ' -f 1",null,8);
   if(!installedMonitor.equals(currentMonitor)){
-   run("p=$(cat "+BASE+"/health-loop.pid 2>/dev/null); case $p in ''|*[!0-9]*) ;; *) if [ -r /proc/$p/cmdline ] && tr '\\000' ' ' </proc/$p/cmdline | grep -qF '"+BASE+"/health.sh --loop'; then kill -TERM $p; i=0; while kill -0 $p 2>/dev/null && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done; fi;; esac",null,15);
-   if(run("test -f "+BASE+"/health-enabled && echo yes || true",null,8).equals("yes"))healthLaunch();
+   run(busybox()+" setsid /system/bin/sh "+BASE+"/health.sh upgrade </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &",null,10);
   }
+  hashes.put("health-helper.sha256",hex(java.security.MessageDigest.getInstance("SHA-256").digest((apkHash+"\n").getBytes("UTF-8"))));
+  String layout=run("if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then echo rootfs; elif [ -f "+BASE+"/installed ]; then echo damaged; else echo host; fi",null,5);
+  // A missing installed rootfs needs DEPLOY to repair it; do not block that action or cache it.
+  if(layout.equals("damaged"))return;
+  boolean rootfs=layout.equals("rootfs");
+  String manifest=RuntimeStageCache.manifest(hashes,rootfs);
+  // Cache only a complete, verified copy. A later rootfs installation invalidates host-only entries.
+  if(!run(RuntimeStageCache.verificationCommand(BASE,"/data/adb/service.d/97-asterisk-app.sh",manifest),null,10).equals("valid"))throw new IOException("运行组件校验失败，请重试");
+  if(stamp>0&&stamp==runtimeStamp(context))context.getSharedPreferences("app",0).edit().putLong("runtimeCacheStamp",stamp).putString("runtimeCacheManifest",manifest).commit();
  }
  static void syncMonitorWake(Context context)throws Exception{
+  run(monitorWakeCommand(context),null,8);
+ }
+ static String monitorWakeCommand(Context context){
   boolean on=context.getSharedPreferences("app",0).getBoolean("awake",false);
-  run(on?"touch "+BASE+"/health-awake":"rm -f "+BASE+"/health-awake; printf '%s\\n' asterisk_monitor > /sys/power/wake_unlock 2>/dev/null || true",null,8);
+  return on?"touch "+BASE+"/health-awake":"rm -f "+BASE+"/health-awake; printf '%s\\n' asterisk_monitor > /sys/power/wake_unlock 2>/dev/null || true";
  }
  static void verifySelf(Context c)throws Exception{
   android.content.pm.PackageInfo p=c.getPackageManager().getPackageInfo("com.fann.asterisk",android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);

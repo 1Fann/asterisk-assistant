@@ -1,18 +1,35 @@
 # Asterisk Assistant
 
-**Latest: 1.2.1** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+**Current build: 1.2.5** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
 
 Bundled AGI missing-name formatting fix, portable root-provider support, IPv6 Wi-Fi receive locks and optional Android 11–13 screen-off compatibility.
 
 [中文](README.md) · [Download APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-Version **1.2.1**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+Version **1.2.5**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
 
 1.2.0 fixes skipped number grouping when AGI represents a missing caller name as `unknown`, while preserving real contact names and caller privacy.
 
 Features include deployment, start/stop/restart, SIP accounts/passwords, connection state, ports, configuration/backups, logs, authentication/RTP echo self-tests, legacy migration/cleanup, boot startup and an optional wake lock.
 
-## Update 1.2.1
+
+## Engine recovery 1.2.5
+
+The one-second cached-PID probe can request direct engine recovery only after an observed engine death. The foreground owner, prior background authorization, manual switches, signing identity, complete staged-runtime hashes and current cellular/PBX call state must pass first. Full background and SIP checks still follow; uncertain conditions use the existing recovery path. Start/stop commands share a lock, STOP publishes its disabled marker before waiting, and automatic recovery never clears that marker.
+
+An unchanged successful network preparation can be reused only when the IPv4/IPv6 state, complete SIP configuration, public-network settings and relevant code hashes still match. Changed inputs or failed preparation invalidate reuse. Native startup now observes the actual process within the existing three-second allowance instead of always sleeping for three seconds; final SIP checks remain required. Approximately three seconds is the recovery target, subject to device measurement, not a guaranteed bound for every failure.
+
+## Startup preparation 1.2.4 (local build)
+
+START/BOOT still verify the APK signature, then validate a successfully staged package timestamp, complete SHA-256 manifest, Root ownership and executable script permissions. A matching host runtime, boot hook and rootfs copies are reused without unpacking and copying them again. Package changes and missing or corrupt files require full staging. UPDATE/DEPLOY remain forced refreshes. Existing wake preferences, manual stop and call guards remain in effect; on-device recovery latency is measured separately.
+
+## Reliability hardening 1.2.2 (local build)
+
+A singleton supervisor recreates a terminated health worker. Shared repair-lock contention is nonblocking and retried without waiting for the full configured interval. System queries have timeouts, and runtime scripts are replaced atomically so refreshes cannot truncate an executing script. Asterisk boot and sticky-service recovery preserve an explicit manual stop; disabled autostart cancels boot waiting.
+
+Existing call-safety checks, signing checks, intervals and wake settings remain in effect. No automatic device reboot or credential-unlock bypass is added. Isolated regression tests cover contention, duplicate starts, worker death and disabling. Long screen-off operation, password-protected reboot, supervisor/device failure and external reachability still need separate validation.
+
+## Previous update 1.2.1
 
 Also fixes the corrupted launcher label and adds an adaptive server icon.
 
@@ -68,3 +85,9 @@ Managed client endpoints move to a non-temporary global Wi-Fi IPv6 address for s
 The foreground service holds a Wi-Fi multicast reception lock for ROMs that filter IPv6 neighbor discovery while asleep. This consumes additional power and is released when public mode is disabled, the server stops or the process exits. Authentication/RTP echo self-tests support IPv6. No actual cellular calls are automated and router settings are not modified. Allow the configured SIP UDP and RTP ports along the path. The preset uses UDP without SIP TLS or media encryption; management and credentials remain local.
 
 User validation confirmed hostname registration and echo over cellular Internet. Short screen-off cross-device SIP and ICMPv6 checks passed. Prolonged deep sleep, reboot and full dual-SIM public call coverage remain pending.
+
+## 1.2.3 local recovery-speed update (2026-10-31)
+
+The first monitor-worker exit is restarted immediately; repeated short failures back off. Cached service and engine PIDs are checked once per second without a Binder query, retaining the existing 10-second foreground-service check. Explicit transient dependency waits retry after 3 seconds for six attempts before slowing down. Boot readiness is polled once per second. Runtime handover waits for an existing repair check before replacing monitor owners.
+
+Detection timings are not full call-readiness guarantees. Active/unknown call guards, manual stops, signature validation and credential-storage restrictions remain in force.

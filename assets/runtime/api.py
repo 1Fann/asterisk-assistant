@@ -158,7 +158,13 @@ def network():
                 for key,value in {'transport':'transport-public-ipv6' if enabled else 'transport-lan',
                     'media_address':ipv6 if enabled else ip,'bind_rtp_to_media_address':'yes',
                     'rtp_ipv6':'yes' if enabled else 'no'}.items():s['body']=field(s['body'],key,value)
-        if enabled:sections.append({'header':'\n[transport-public-ipv6]\n','body':f'type=transport\nprotocol=udp\nbind=[{ipv6}]:{port}\n'})
+        if enabled:
+            # blocks() retains separator newlines in the previous section body.
+            # Replacing this generated tail must not append another separator on
+            # every recovery, otherwise unchanged network preparation never stabilizes.
+            if sections:sections[-1]['body']=sections[-1]['body'].rstrip('\r\n')+'\n'
+            else:prefix=prefix.rstrip('\r\n')+'\n' if prefix else ''
+            sections.append({'header':'\n[transport-public-ipv6]\n','body':f'type=transport\nprotocol=udp\nbind=[{ipv6}]:{port}\n'})
     updated=prefix+''.join(s['header']+s['body'] for s in sections)
     if updated!=text:write(C/'pjsip.conf',updated)
     return {'ok':True}

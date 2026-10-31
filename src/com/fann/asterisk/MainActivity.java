@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
   Switch boot=new Switch(this);boot.setText("开机自动启动");boot.setChecked(getSharedPreferences("app",0).getBoolean("autostart",true));options.addView(boot);boot.setOnCheckedChangeListener((b,on)->async(()->{RootBridge.run(RootBridge.BASE+"/control.sh autostart "+(on?"1":"0"),null,15);getSharedPreferences("app",0).edit().putBoolean("autostart",on).apply();return on?"开机自启已开启":"开机自启已关闭";},this::toast));
   Switch wake=new Switch(this);wake.setText("专用唤醒锁（增加耗电）");wake.setChecked(getSharedPreferences("app",0).getBoolean("awake",false));options.addView(wake);wake.setOnCheckedChangeListener((b,on)->{getSharedPreferences("app",0).edit().putBoolean("awake",on).apply();service("WAKE");toast(on?"已启用专用唤醒锁":"已关闭专用唤醒锁");});
   text(options,"保持通知可见，并允许后台运行。账号密码只保存在本机 Root 私有目录。卸载前请关闭自动检查，再停止服务器。",13,false);
-  text(page,"Asterisk 助手 1.2.1 · ARM64 / Root\n当前预置回声号码：600",12,false);
+  text(page,"Asterisk 助手 1.2.5 · ARM64 / Root\n当前预置回声号码：600",12,false);
   if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7);
   refresh(true);healthMonitor.refresh();background(false);
  }
