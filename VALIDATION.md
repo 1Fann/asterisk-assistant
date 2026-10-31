@@ -188,3 +188,16 @@ All six isolated lock and handoff cases passed with the final 1.2.5 runtime on t
 
 数值为本机含探测开销的首次观测，不是普适上限。守护与业务分别连续抽样确认至少 1 秒和 3 秒。电话就绪检查含网关状态及匹配的 PBX 注册记录；本次未拨打真实电话、发送短信或通知，也未验证外网送达或双向通话音频。
 <!-- recovery-target-20261031:end -->
+
+
+## 1.2.6 — Screen-off IPv6 default-route renewal / 息屏 IPv6 路由续期
+
+On the test Android 13 / MIUI 14 phone, Asterisk stayed running while the WLAN IPv6 default route expired during prolonged screen-off operation. LAN registration succeeded, but public SIPIS REGISTER requests arrived without SIP replies. A kernel route lookup from the PBX Wi-Fi address returned network unreachable. A single ICMPv6 Router Solicitation restored a router-advertised default with a 1800-second lifetime while the screen remained off.
+
+The APK now bundles a singleton route check under the existing Wi-Fi compatibility option. While the owned server and public IPv6 mode are enabled, it checks the Wi-Fi default route every 30 seconds. A missing route or a remaining lifetime of at most 120 seconds triggers a standards-based solicitation on wlan0. The kernel installs the router-advertised route. A valid permanent route or a longer-lived route needs no solicitation. Manual server stop, public-mode disable and compatibility opt-out suppress requests.
+
+在真实 Android Shell 上，用隔离目录及模拟网络命令验证了路由正常、缺失、120 秒边界、其他接口、多路由器、手动停止、公网停用及兼容模式关闭。原签名 APK 1.2.6 已覆盖安装，运行文件逐字节匹配 APK，Asterisk 进程号和账号／拨号配置校验值保持一致。红米持续息屏期间，实际任务在路由到期前自行请求续期，内核有效期恢复至约 1800 秒，并已观察到公网 SIPIS 注册成功的 200 回复。此轮未自动拨打电话。
+
+2026-11-01 最终确认：手机连续息屏约 84.5 分钟，其中更新后的被动观察持续 32 分钟，抽样未发现 Wi-Fi 默认路由缺失。自动续期成功，两条公网 SIPIS 线路均注册成功；用户随后在保持红米息屏的情况下确认 Groundwire 连接成功。本轮验证连接及注册，未测试实际通话或双向音频。
+
+Final confirmation on 2026-11-01: the phone stayed continuously screen-off for approximately 84.5 minutes. During 32 minutes of passive post-update observation, every sample retained a Wi-Fi default route and an automatic renewal succeeded. Both public SIPIS lines registered successfully, and the user subsequently confirmed Groundwire connected while the Android phone remained screen-off. These are single-device connection and registration observations; no actual call or two-way audio was tested.

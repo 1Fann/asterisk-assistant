@@ -9,7 +9,11 @@ done
 [ -n "$BB" ] || { echo busybox_missing; exit 20; }
 [ -x "$BB" ] && [ -f "$BASE/.asterisk-app-owned" ] || exit 1
 case "${1:-loop}" in
- loop) exec "$BB" flock -n "$BASE/wifi-compat.lock" /system/bin/sh "$0" --loop;;
+ loop)
+  # This also starts the route check on APK replacement when an older receive-lock
+  # worker still owns wifi-compat.lock. Each worker has its own singleton lock.
+  "$BB" setsid /system/bin/sh "$BASE/wifi-route.sh" loop </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
+  exec "$BB" flock -n "$BASE/wifi-compat.lock" /system/bin/sh "$0" --loop;;
  --loop) ;;
  *) exit 2;;
 esac

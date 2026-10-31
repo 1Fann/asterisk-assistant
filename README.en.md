@@ -1,12 +1,14 @@
 # Asterisk Assistant
 
-**Current build: 1.2.5** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+**Current build: 1.2.6** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
 
 Bundled AGI missing-name formatting fix, portable root-provider support, IPv6 Wi-Fi receive locks and optional Android 11–13 screen-off compatibility.
 
+1.2.6 adds automatic Wi-Fi IPv6 default-route renewal to screen-off compatibility mode, addressing unanswered public SIP registrations after prolonged screen-off operation. See the [release notes](releases/v1.2.6/NOTES.md).
+
 [中文](README.md) · [Download APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-Version **1.2.5**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+Version **1.2.6**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
 
 1.2.0 fixes skipped number grouping when AGI represents a missing caller name as `unknown`, while preserving real contact names and caller privacy.
 
