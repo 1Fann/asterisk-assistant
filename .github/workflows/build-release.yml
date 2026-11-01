@@ -18,6 +18,8 @@ jobs:
       - name: Verify backend, policy and signed release
         run: |
           for file in assets/runtime/*.sh; do sh -n "$file"; done
+          python3 tests/check_wifi_workers.py --shell /bin/sh
+          python3 tests/check_wifi_identity.py --shell /bin/sh
           python3 check-backend.py assets/runtime
           python3 tools/callerid-format/download_dependency.py
           python3 tools/callerid-format/check_format.py

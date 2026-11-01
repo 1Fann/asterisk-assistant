@@ -201,3 +201,46 @@ The APK now bundles a singleton route check under the existing Wi-Fi compatibili
 2026-11-01 最终确认：手机连续息屏约 84.5 分钟，其中更新后的被动观察持续 32 分钟，抽样未发现 Wi-Fi 默认路由缺失。自动续期成功，两条公网 SIPIS 线路均注册成功；用户随后在保持红米息屏的情况下确认 Groundwire 连接成功。本轮验证连接及注册，未测试实际通话或双向音频。
 
 Final confirmation on 2026-11-01: the phone stayed continuously screen-off for approximately 84.5 minutes. During 32 minutes of passive post-update observation, every sample retained a Wi-Fi default route and an automatic renewal succeeded. Both public SIPIS lines registered successfully, and the user subsequently confirmed Groundwire connected while the Android phone remained screen-off. These are single-device connection and registration observations; no actual call or two-way audio was tested.
+
+
+## 2026-11-01 reliability follow-up 1.2.7
+
+
+补齐 IPv6 自动续期任务自身的恢复。Wi-Fi 兼容循环定期补齐续期任务，独立健康守护也会补齐 Wi-Fi 兼容任务。任务仍由单实例锁保护；服务器手动停止或关闭兼容选项后，不主动恢复已停用的任务。
+
+单次路由检查增加 20 秒时限和额外 2 秒强制退出期限，原始套接字增加 3 秒时限，避免一次卡住阻塞以后的续期。原有的路由有效期判断、账号配置和签名身份保留。
+
+本地隔离测试覆盖任务丢失后的重新拉起、检查超时后的后续检查；这些测试模拟 Android 命令和时钟，不代表实机时延保证。实机故障注入和长时间息屏复测须在部署后单独记录。
+
+Adds recovery for the IPv6 renewal worker itself. The Wi-Fi compatibility loop periodically ensures that the singleton renewal worker exists, and the independent health monitor also restores missing Wi-Fi compatibility workers. Manual stop and compatibility opt-out remain authoritative.
+
+Each route check has a 20-second deadline with a further 2-second kill grace. The raw socket has a 3-second timeout, preventing a stuck attempt from blocking later renewal cycles. Existing route decisions, account configuration and production signing identity are retained.
+
+Local isolated regressions cover a lost renewal worker and repeated check deadlines. They mock Android commands and scheduling; actual device recovery latency and prolonged screen-off acceptance require separate deployment testing.
+
+
+1.2.7 follow-up: one-second route-worker identity polling and exact Wi-Fi-only upgrade handoff are covered by `tests/check_wifi_identity.py`. Cached live ticks issue no argv subprocesses. PID reuse and unrelated sleeps are excluded. Existing process-observation regressions remain applicable. Device timing must be measured after the old loops have handed off to the new APK.
+
+### 2026-11-01 最终 APK 续期任务退出实机验收 / Renewal-worker device acceptance
+
+最终 1.2.7 APK 的 SHA-256 为 `c9f744453f2dd87bfc296630699d66a4a31c67f38cc3c985ac54e79a90ababc0`。安装后，四个 Wi-Fi 运行脚本已与 APK 核对一致，新续期任务记录包含 PID 与进程启动时间。对已经运行新版代码的续期任务分别执行三次受控 KILL，首次观测到替代任务恢复的时间为 **0.625、1.250、1.157 秒**；三次均通过后续稳定确认，Asterisk PBX 进程号均未变化。
+
+这是单台设备、包含实际观察开销的三次任务恢复测量，不是恢复时间上限，也不代表全部故障均可在一秒内恢复。本项仅验证续期任务退出后的重新拉起与稳定存活，不替代实际路由续期、真实通话、主业务恢复或整机重启验收。升级前旧循环及其 sleep 子进程的观测不计入上述新版样本。
+
+The final 1.2.7 APK has SHA-256 `c9f744453f2dd87bfc296630699d66a4a31c67f38cc3c985ac54e79a90ababc0`. After installation, all four Wi-Fi runtime scripts matched the APK, and the new renewal-worker record contained its PID and process start ticks. Three controlled KILL trials against workers already running the new code first observed replacement workers after **0.625, 1.250 and 1.157 seconds**. Every replacement passed subsequent stability observation, and the Asterisk PBX PID remained unchanged.
+
+These are three single-device measurements including observation overhead, not upper bounds or a one-second guarantee for every failure. This acceptance covers replacement and stable survival of the renewal worker. It does not substitute for route-renewal, real-call, business-process recovery or whole-device reboot tests. Observations of pre-update loops and their sleep children are excluded from these new-runtime samples.
+
+### 2026-11-01 最终 APK 业务退出及整机重启验收 / Business-process and reboot acceptance
+
+最终 1.2.7 部署后，单次受控终止 PBX 业务进程，首次观测本地就绪为 **2.97 秒**，随后连续稳定确认至少 3 秒。同轮电话网关业务进程退出测试为 2.59 秒，并单独通过至少 3 秒稳定确认。这里的就绪检查包含网关状态应答和本地就绪标志、PBX 运行状态及匹配的网关注册记录。
+
+随后进行一次整机重启，所有时间均从发出重启请求起算，包含系统启动：系统启动完成 **37.53 秒**，用户自动解锁 **37.84 秒**，PBX 网关注册 **54.66 秒**，电话网关完整本地就绪 **62.00 秒**，全套服务首次齐备 **62.06 秒**，在 **66.08 秒**完成持续 4.02 秒的稳定确认。观察者没有输入解锁指令，也没有主动启动 Activity 或服务；该红米设备 `deviceSecure=false`，因此这不是设置安全锁屏密码后首次解锁之前的恢复验证。
+
+以上为单台设备各一次故障／重启实测，时间是包含查询延迟的首次成功观测，不是固定上限或通用保证。仅核验本地接口及状态，不证明公网可达、实际呼叫接通或双向通话音频。重启记录：调查工作区 `reliability-20261031/private/full-retest-20261101-084900/reboot.json`。
+
+After deploying the final 1.2.7 APK, one controlled PBX business-process kill first reached local readiness in **2.97 seconds**, followed by at least three seconds of stable observation. The separate gateway business-process trial reached readiness in 2.59 seconds and likewise passed at least three seconds of stability observation. Readiness includes the gateway status acknowledgement and local ready flags, the running PBX and a matching gateway registration.
+
+One subsequent whole-device reboot measured every stage from the reboot request, including operating-system startup: boot completed at **37.53 seconds**, the user unlocked automatically at **37.84 seconds**, the PBX gateway registered at **54.66 seconds**, full local gateway readiness appeared at **62.00 seconds**, and all services were first ready at **62.06 seconds**. Stability was confirmed at **66.08 seconds**, after 4.02 seconds of continuous readiness. The observer issued no unlock, Activity-start or service-start commands. The Redmi device reported `deviceSecure=false`; this does not validate recovery before the first credential unlock on a securely locked device.
+
+These are one trial per fault/reboot on one device. Times are first successful observations including query latency, not fixed upper bounds or general guarantees. Checks cover local interfaces and state, not public-network reachability, a completed real call or two-way call audio. Reboot evidence is in the investigation workspace at `reliability-20261031/private/full-retest-20261101-084900/reboot.json`.

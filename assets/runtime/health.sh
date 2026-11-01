@@ -142,6 +142,10 @@ expects_engine() {
 LAST_LIVE=$(confirmed_engine_pid)
 printf '%s\n' "$$" > "$BASE/health-loop.pid"
 release_monitor_wake() { printf '%s\n' asterisk_monitor > /sys/power/wake_unlock 2>/dev/null || :; }
+ensure_wifi_workers() {
+ [ -f "$BASE/wifi-compat.enabled" ] && [ ! -f "$BASE/disabled" ] || return 0
+ "$BB" setsid /system/bin/sh "$BASE/wifi-compat.sh" loop </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
+}
 renew_monitor_wake() {
  if [ -f "$BASE/health-awake" ] && [ ! -f "$BASE/disabled" ]; then
   # Bounded lease survives an app task cleanup, but expires if this monitor dies.
@@ -156,6 +160,7 @@ TRANSIENT_RETRIES=0
 MISSING_RETRIES=0
 RECOVERY_PID=
 while [ -f "$BASE/health-enabled" ]; do
+ ensure_wifi_workers
  renew_monitor_wake
  # A full check can overlap native death. Refresh the live observation before
  # entering it, retaining the last confirmed observation across lock contention.
@@ -208,6 +213,7 @@ while [ -f "$BASE/health-enabled" ]; do
  while [ "$LEFT" -gt 0 ] && [ -f "$BASE/health-enabled" ]; do
   [ -f "$BASE/health-now" ] && { rm -f "$BASE/health-now"; break; }
   [ $((TICKS % 5)) -ne 0 ] || renew_monitor_wake
+  [ $((TICKS % 10)) -ne 0 ] || ensure_wifi_workers
   sleep 1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
   LEFT=$((LEFT - 1)); TICKS=$((TICKS + 1))
   # Only while an authorized engine is missing: re-arm a replacement during

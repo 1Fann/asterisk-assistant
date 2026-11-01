@@ -73,6 +73,7 @@ final class RootBridge {
  }
  static synchronized void stage(Context context)throws Exception{
   String installedMonitor=run("sha256sum "+BASE+"/health.sh 2>/dev/null | cut -d ' ' -f 1 || true",null,8);
+  String installedWifi=run("sha256sum "+BASE+"/wifi-compat.sh "+BASE+"/wifi-route.sh 2>/dev/null || true",null,8);
 
   verifySelf(context);long stamp=runtimeStamp(context);String apkHash=hash(new File(context.getApplicationInfo().sourceDir));
   // Invalidate before any replacement so a failed or interrupted deployment cannot be cached.
@@ -89,6 +90,8 @@ final class RootBridge {
   // Atomic replacement keeps already-running shell/Python readers on intact files.
   String command="set -eu; umask 077; if [ -e "+BASE+" ] && [ ! -f "+BASE+"/.asterisk-app-owned ]; then exit 21; fi; mkdir -p "+BASE+"; chmod 700 "+BASE+"; touch "+BASE+"/.asterisk-app-owned; for file in "+source+"/*; do name=${file##*/}; cp \"$file\" "+BASE+"/$name.new.$$; chmod 700 "+BASE+"/$name.new.$$; mv -f "+BASE+"/$name.new.$$ "+BASE+"/$name; done; mkdir -p /data/adb/service.d; cp "+BASE+"/97-asterisk-app.sh /data/adb/service.d/97-asterisk-app.sh.new.$$; chmod 700 /data/adb/service.d/97-asterisk-app.sh.new.$$; mv -f /data/adb/service.d/97-asterisk-app.sh.new.$$ /data/adb/service.d/97-asterisk-app.sh; if [ -d "+BASE+"/rootfs/opt/asterisk-app ]; then chmod 755 "+BASE+"/rootfs; for file in "+BASE+"/*.py "+BASE+"/*.whl "+BASE+"/run.sh; do name=${file##*/}; cp \"$file\" "+BASE+"/rootfs/opt/asterisk-app/$name.new.$$; chmod 644 "+BASE+"/rootfs/opt/asterisk-app/$name.new.$$; mv -f "+BASE+"/rootfs/opt/asterisk-app/$name.new.$$ "+BASE+"/rootfs/opt/asterisk-app/$name; done; fi; echo ready";
   run(command,null,30);
+  String currentWifi=run("sha256sum "+BASE+"/wifi-compat.sh "+BASE+"/wifi-route.sh",null,8);
+  if(!installedWifi.equals(currentWifi))run(busybox()+" setsid /system/bin/sh "+BASE+"/wifi-upgrade.sh </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &",null,10);
   // First-install default for tested Android 11-13; preserve an explicit opt-out.
   if(android.os.Build.VERSION.SDK_INT<=33)run("if [ ! -f "+BASE+"/wifi-compat.configured ]; then touch "+BASE+"/wifi-compat.enabled "+BASE+"/wifi-compat.configured; fi",null,8);
   // Retire only our old migration hook. The APK now starts the same owned worker.

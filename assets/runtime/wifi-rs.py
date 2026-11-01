@@ -13,6 +13,7 @@ def solicit(source, mac):
     # ICMPv6 type 133 and Source Link-Layer Address option, checksum filled by Linux.
     packet = struct.pack("!BBHI", 133, 0, 0, 0) + bytes([1, 1]) + bytes.fromhex(mac.replace(":", ""))
     with socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_ICMPV6) as sock:
+        sock.settimeout(3)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"wlan0\0")
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF, index)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, 255)

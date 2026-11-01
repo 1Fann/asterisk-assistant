@@ -6,12 +6,25 @@ for BB in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/bu
 done
 [ -x "$BB" ] && [ -f "$BASE/.asterisk-app-owned" ] || exit 1
 umask 077
+. "$BASE/wifi-worker-lib.sh"
 case "${1:-loop}" in
  loop) exec "$BB" flock -n "$BASE/wifi-route.lock" /system/bin/sh "$0" --loop;;
  --loop)
+  wifi_process "$$" || exit 1
+  OWNER="$$ $WIFI_TICKS"
+  printf '%s\n' "$OWNER" >"$BASE/wifi-route.pid.new.$$"
+  mv -f "$BASE/wifi-route.pid.new.$$" "$BASE/wifi-route.pid"
+  release_route() {
+   local current
+   [ -r "$BASE/wifi-route.pid" ] && IFS= read -r current <"$BASE/wifi-route.pid" || return 0
+   [ "$current" != "$OWNER" ] || rm -f "$BASE/wifi-route.pid"
+  }
+  trap release_route EXIT
+  trap 'exit 0' TERM INT HUP
   while [ -f "$BASE/wifi-compat.enabled" ]; do
-   /system/bin/sh "$0" check
-   sleep 30
+   # A blocked network/namespace command must not stop later renewal attempts.
+   "$BB" timeout -k 2 20 /system/bin/sh "$0" check 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+   sleep 30 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
   done
   exit 0;;
  check) ;;
