@@ -1,14 +1,16 @@
 # Asterisk Assistant
 
-**Current build: 1.2.7** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+**Current build: 1.2.9** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
 
 Bundled AGI missing-name formatting fix, portable root-provider support, IPv6 Wi-Fi receive locks and optional Android 11–13 screen-off compatibility.
 
-1.2.7 adds worker recovery and bounded checks to automatic Wi-Fi IPv6 route renewal, keeping renewal protection active if its worker exits independently. See the [release notes](releases/v1.2.7/NOTES.md).
+1.2.9 adds an optional screen-off Wi-Fi module under Background for Redmi Note 10 Pro (chopin), Android 13 and Magisk. It applies device-wide after a reboot. This version also prevents failed automatic restarts from leaving a manual-stop marker. Screen-off renewal can solicit a router advertisement from a link-local address and checks whether the kernel has a usable route for the PBX source after sending. See the [release notes](releases/v1.2.9/NOTES.md).
 
 [中文](README.md) · [Download APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-Version **1.2.7**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
+Background contains separate controls for the [Redmi Wi-Fi module](tools/redmi-wifi/README.md) and the [cross-app recovery monitor](docs/BACKGROUND-RECOVERY.md).
+
+Version **1.2.9**. A community Android app that deploys and manages Ubuntu's Asterisk packages on a rooted ARM64 phone. Asterisk core source is unchanged. Termux is not required.
 
 1.2.0 fixes skipped number grouping when AGI represents a missing caller name as `unknown`, while preserving real contact names and caller privacy.
 

@@ -1,14 +1,16 @@
 # Asterisk 助手 / Asterisk Assistant
 
-**Current build: 1.2.7** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
+**Current build: 1.2.9** — [新手机部署与权限说明 / New-phone setup](NEW-PHONE-SETUP.md)
 
 内置 AGI 空姓名号码分段修复；跨 Root 管理器部署；公网 IPv6 Wi-Fi 接收锁及可关闭的 Android 11–13 息屏兼容，替代迁移时的外置补丁。
 
-1.2.7 为 Wi-Fi IPv6 自动续期任务加入自身监护和检查超时，避免续期任务单独退出后失去保护。详见 [更新说明](releases/v1.2.7/NOTES.md)。
+1.2.9 在“后台运行”中提供红米 Note 10 Pro 的可选息屏 Wi-Fi 模块；仅适用于 chopin、Android 13 与 Magisk，重启后对整机生效。此版也修复自动重启失败后误判为手动停用的问题。息屏时 Wi-Fi 可以从链路本地地址请求路由通告，按 PBX 源地址核验实际选中的路由，并在请求后确认内核是否已恢复可用路由。详见 [更新说明](releases/v1.2.9/NOTES.md)。
 
 [English](README.en.md) · [下载 APK](https://github.com/1Fann/asterisk-assistant/releases/latest) · [MIT](LICENSE)
 
-在已 Root 的 ARM64 Android 手机上，一键部署并可视化管理 Asterisk SIP 服务器。当前版本 **1.2.7**。这是社区原创管理 App，使用 Ubuntu 软件源的 Asterisk，未修改服务器核心源码。无需 Termux。
+在“后台运行”中分别管理[红米 Wi-Fi 模块](tools/redmi-wifi/README.md)和[配套服务备用守护](docs/BACKGROUND-RECOVERY.md)。
+
+在已 Root 的 ARM64 Android 手机上，一键部署并可视化管理 Asterisk SIP 服务器。当前版本 **1.2.9**。这是社区原创管理 App，使用 Ubuntu 软件源的 Asterisk，未修改服务器核心源码。无需 Termux。
 
 1.2.0 修复空主叫名称在 AGI 中表示为 `unknown` 时跳过号码分段的问题；仍保留真实联系人姓名及号码隐藏设置。
 

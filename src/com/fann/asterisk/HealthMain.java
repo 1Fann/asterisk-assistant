@@ -11,6 +11,7 @@ public final class HealthMain {
  static final String BASE=RootBridge.BASE;
  static String message="检查尚未完成",phase="initialize",error="",observedPid="";static boolean repaired,retrySoon,fastStarted;
  static String fastGate="not_checked",fastRuntime="not_checked",fastError="";static long fastStartedAt,fastElapsedMs;
+ static String localSipState="unchecked",publicIpv6State="unchecked";
  static final java.util.Map<String,Long> fastStages=new java.util.LinkedHashMap<>();
  static Context context;
  static boolean enabled(){return new File(BASE,"health-enabled").isFile();}
@@ -20,7 +21,7 @@ public final class HealthMain {
   String channels=running?RootBridge.run(BASE+"/control.sh cli core show channels count",null,10):"0 active calls\n";
   return HealthPolicy.idle(RootBridge.run("dumpsys telephony.registry",null,12),channels,true);
  }
- static void guard()throws Exception{if(!enabled()||!wanted()||!idle())throw new IOException("paused_or_busy");}
+ static void guard()throws Exception{if(!enabled()||!wanted()||!new File(BASE,"background-authorized").isFile()||!idle())throw new IOException("paused_or_busy");}
  public static void main(String[] args){
   if(android.os.Process.myUid()!=0)throw new SecurityException();
   if(args.length==1)observedPid=args[0];
@@ -46,12 +47,12 @@ public final class HealthMain {
   boolean running=RootBridge.run(BASE+"/control.sh state",null,10).equals("running");
   if(!running||!owner.contains("isForeground=true")){
    guard();phase="server_foreground";
-   try{RootBridge.run("am start-foreground-service --user 0 -n com.fann.asterisk/.ManagerService --es action START",null,15);}catch(IOException ignored){}
+   try{RootBridge.run("am start-foreground-service --user 0 -n com.fann.asterisk/.ManagerService --es action RECOVER",null,15);}catch(IOException ignored){}
    repaired=true;awaitForegroundAndEngine(4000);
    owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
    if(!owner.contains("isForeground=true")){
     guard();RootBridge.run("am start -n com.fann.asterisk/.MainActivity",null,15);Thread.sleep(2000);
-    guard();RootBridge.run("am start-foreground-service --user 0 -n com.fann.asterisk/.ManagerService --es action START",null,15);Thread.sleep(2000);
+    guard();RootBridge.run("am start-foreground-service --user 0 -n com.fann.asterisk/.ManagerService --es action RECOVER",null,15);Thread.sleep(2000);
    }
   }
   JSONObject snapshot=new JSONObject(RootBridge.run(BASE+"/control.sh status",null,15));
@@ -60,18 +61,29 @@ public final class HealthMain {
   String address=snapshot.optString("ip");boolean changed=!address.isEmpty()&&!ip.contains(" "+address+"/");
   JSONObject publicNetwork=snapshot.optJSONObject("publicIpv6");
   String publicAddress="";int publicPort=snapshot.getJSONObject("ports").getInt("lanPort");
-  if(publicNetwork!=null&&publicNetwork.optBoolean("enabled")){
+  boolean publicEnabled=publicNetwork!=null&&publicNetwork.optBoolean("enabled");
+  if(publicEnabled){
    String current6=RootBridge.run(BASE+"/control.sh ipv6",null,8);
    publicAddress=current6;
-   changed|=!current6.equals(snapshot.optString("ipv6"));
   }
-  if(changed||(!sipAlive(port)&&!sipAlive(port))||(!publicAddress.isEmpty()&&!sipAlive(publicAddress,publicPort))){
-   guard();phase="server_restart";RootBridge.run(BASE+"/control.sh restart",null,40);repaired=true;
+  // The address can disappear during the SIP timeout. Re-read it before deciding
+  // that its listener needs repair; a missing address cannot be fixed by restarting.
+  boolean ipv6Repair=!publicAddress.isEmpty()&&(!publicAddress.equals(snapshot.optString("ipv6"))||!sipAlive(publicAddress,publicPort));
+  if(ipv6Repair)ipv6Repair=publicAddress.equals(RootBridge.run(BASE+"/control.sh ipv6",null,8));
+  if(changed||(!sipAlive(port)&&!sipAlive(port))||ipv6Repair){
+   guard();phase="server_restart";RootBridge.run(BASE+"/control.sh auto-restart",null,65);repaired=true;
   }
   owner=RootBridge.run("dumpsys activity services com.fann.asterisk",null,10);
-  boolean ok=RootBridge.run(BASE+"/control.sh state",null,8).equals("running")&&owner.contains("isForeground=true")&&sipAlive(port)&&(publicAddress.isEmpty()||sipAlive(publicAddress,publicPort));
-  retrySoon=!ok;
-  message=ok?(repaired?"已恢复 Asterisk，后台网络与 SIP 响应正常":"Asterisk、后台网络服务与 SIP 响应正常"):"服务器恢复尚未完成，下轮重试";
+  boolean localReady=RootBridge.run(BASE+"/control.sh state",null,8).equals("running")&&owner.contains("isForeground=true")&&sipAlive(port);
+  localSipState=localReady?"ready":"unavailable";
+  if(publicEnabled) publicAddress=RootBridge.run(BASE+"/control.sh ipv6",null,8);
+  publicIpv6State=!publicEnabled?"disabled":publicAddress.isEmpty()?"waiting_address":
+      sipAlive(publicAddress,publicPort)?"local_listener_ready":"local_listener_unavailable";
+  retrySoon=!localReady;
+  if(!localReady){message="本机 Asterisk 或 SIP 未就绪，下轮重试";return;}
+  if(publicIpv6State.equals("waiting_address")){message="本机 SIP 正常，等待可确定的 Wi-Fi 公网 IPv6 地址";return;}
+  if(publicIpv6State.equals("local_listener_unavailable")){message="本机 SIP 正常，IPv6 接口未应答";return;}
+  message=publicEnabled?"本机 SIP 正常，本机 IPv6 SIP 接口已应答":"本机 Asterisk 和 SIP 响应正常";
  }
  static boolean tryEngineRecovery(){fastStartedAt=android.os.SystemClock.elapsedRealtime();try{
   return EngineRecovery.attempt(observedPid,new EngineRecovery.Host(){
@@ -122,6 +134,7 @@ public final class HealthMain {
  }
  static void save(){try{
   JSONObject j=new JSONObject();j.put("checkedAt",System.currentTimeMillis());j.put("message",message);j.put("repaired",repaired);j.put("phase",phase);j.put("error",error);j.put("fastStarted",fastStarted);
+  j.put("localSip",localSipState);j.put("publicIpv6",publicIpv6State);
   j.put("fastGate",fastGate);j.put("fastRuntime",fastRuntime);j.put("fastError",fastError);j.put("fastElapsedMs",fastElapsedMs);j.put("fastStagesMs",new JSONObject(fastStages));
   File temp=new File(BASE,"health-status.tmp");try(FileOutputStream out=new FileOutputStream(temp)){out.write(j.toString().getBytes(StandardCharsets.UTF_8));}
   if(!temp.renameTo(new File(BASE,"health-status.json")))temp.delete();

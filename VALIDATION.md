@@ -244,3 +244,29 @@ After deploying the final 1.2.7 APK, one controlled PBX business-process kill fi
 One subsequent whole-device reboot measured every stage from the reboot request, including operating-system startup: boot completed at **37.53 seconds**, the user unlocked automatically at **37.84 seconds**, the PBX gateway registered at **54.66 seconds**, full local gateway readiness appeared at **62.00 seconds**, and all services were first ready at **62.06 seconds**. Stability was confirmed at **66.08 seconds**, after 4.02 seconds of continuous readiness. The observer issued no unlock, Activity-start or service-start commands. The Redmi device reported `deviceSecure=false`; this does not validate recovery before the first credential unlock on a securely locked device.
 
 These are one trial per fault/reboot on one device. Times are first successful observations including query latency, not fixed upper bounds or general guarantees. Checks cover local interfaces and state, not public-network reachability, a completed real call or two-way call audio. Reboot evidence is in the investigation workspace at `reliability-20261031/private/full-retest-20261101-084900/reboot.json`.
+
+## 2026-11-04 1.2.8 自动重启与 IPv6 路由核验 / Restart and route validation
+
+1.2.8（versionCode 17）正式 APK 为 497989 字节，SHA-256 为 `ffaeccad04b930ddc734c2b3f464e106eecfd54b2aeb67c9f35cf05e7d0bd95b`。使用 Android 构建工具确认签名与 1.2.7 一致。APK 内 24 个运行文件（含二进制号码库）均与本地源码原始字节一致。
+
+- 27 个隔离控制脚本场景通过，包括自动重启失败、并发手动停用、正在通话／通话状态未知，以及恢复途中撤销授权。26 项通话和恢复策略检查、13 个进程观察场景、8 项网络配置检查通过。
+- 15 项路由选择测试覆盖源地址、正确的接口和下一跳、更专用前缀、优先级及 120 秒有效期边界。12 个脚本场景运行真实的地址选择器、路由管理脚本和 Python 判定逻辑，模拟 Android 网络、服务和时钟。测试区分了只剩链路本地地址、多个稳定地址、错误接口／源前缀、请求后恢复、通告未生效和手动停用。原有工作进程时限、身份与旧版本交接测试通过。
+- 诊断文件位于手机的 `/data/adb/asterisk-app/`。`wifi-route.status` 记录最近的本地路由判断。`wifi-route.last-rs` 是最近成功发出请求的时间，`wifi-route.last-verified-rs` 是请求后的有界复查实际观察到可用内核路由的时间。稍后才恢复的路由可在下一轮显示为 `local-route-ready`。这些文件不能证明观察到的路由一定由本次请求产生，也不证明公网或 iPhone 可达。
+- 若原 PBX 地址已失效，存在多个合格稳定地址时报告 `ambiguous-source`，保留现有“只有一个候选才改选”规则。使用独立 DDNS 的设备仍需核对其地址选择与 PBX 实际监听地址。此处的实测是本地隔离测试；1.2.8 的真机长期自然息屏、重启和外部连接应另行记录。
+
+The 1.2.8 release APK (versionCode 17) is 497989 bytes with SHA-256 `ffaeccad04b930ddc734c2b3f464e106eecfd54b2aeb67c9f35cf05e7d0bd95b`. Android build tools verified the same signer as 1.2.7. All 24 packaged runtime files, including the binary number-formatting dependency, matched the local source bytes.
+
+- 27 isolated control-script scenarios passed, covering failed automatic restart, concurrent manual stop, active/unknown calls and revoked authorization. The 26 call/recovery policy checks, 13 process-observation scenarios and eight network-configuration checks also passed.
+- Fifteen route-policy checks cover the source, actual interface and next hop, more-specific prefixes, route metrics and the 120-second lease boundary. Twelve shell scenarios run the production selector, worker and Python decision code against simulated Android network responses, service state and timing. They distinguish a link-local-only interface, ambiguous addresses, wrong interface/source prefix, recovery after solicitation, unconfirmed sends and manual stop. Existing worker timeout, identity and upgrade-handoff checks passed.
+- In the device's `/data/adb/asterisk-app/`, `wifi-route.status` holds the most recent local route assessment. `wifi-route.last-rs` timestamps a successful send. `wifi-route.last-verified-rs` timestamps an acceptable kernel route inspected in the bounded post-send window. Later recovery may be reported by the next regular check. These observations establish neither causation by that solicitation nor public/iPhone reachability.
+- If the old PBX address expired and multiple stable candidates remain, `ambiguous-source` preserves the existing selection policy. Sites using a separate DDNS selector should compare its choice with the PBX listener. These are local isolated measurements. Long natural screen-off periods, device reboots and external access on 1.2.8 require separate device acceptance.
+
+## 2026-11-04 1.2.9 内置模块与备用守护 / Bundled module and companion fallback
+
+正式 APK 1.2.9（code 18）共 514698 字节，SHA-256 为 `4ee4be3cb432f587177337fe566c84aa0c87c44a11cbee0c127bdc2a26fefa1a`。Android 构建工具验证签名与上一公开版本相同。包内 26 个运行文件及两个模块资产逐字节匹配源文件；发布输入已通过解码及校验。1.2.8 是本地候选，前节记录的控制和路由修复沿用至此版本。
+
+21 个隔离模块管理场景使用正式控制脚本和临时目录中的模拟 Android / Magisk，验证型号、SDK、目标资源、包摘要、安装失败、待重启、重复启用、启停一致性、资源未生效以及同名文件冲突。无关模块的标记始终保留。在红米的独立检查中，当前脚本识别已安装同版覆盖和 Wi-Fi 框架生效状态；已部署备用守护连续两次启用仍使用相同 PID。红米已覆盖安装 1.2.9 正式 APK，核对安装字节与签名后，从应用面板完成「已生效 → 已设置停用 → 已生效」及备用守护重复启用检查。此版本尚未另行进行整夜息屏或真实通话测试。[备用守护验收](docs/BACKGROUND-RECOVERY.md)
+
+The production 1.2.9 APK (code 18) is 514698 bytes, SHA-256 `4ee4be3cb432f587177337fe566c84aa0c87c44a11cbee0c127bdc2a26fefa1a`. Android build tools verified the same signer as the previous public version. The 26 runtime files and two compatibility assets matched their source bytes. Release input decoding and verification passed. The preceding section covers the local 1.2.8 candidate whose control and route fixes are included here.
+
+Twenty-one isolated module-management scenarios exercised the production controller using temporary directories and simulated Android/Magisk responses. They cover device and SDK gates, resources, payload hashes, install failure, pending reboot, repeated enable, consistent markers, ineffective resources and identity conflicts. Another module's marker remained intact. An independent Redmi check identified the matching installed overlay and effective Wi-Fi framework state. Repeated enable of the existing fallback preserved its PID. The complete signed APK was installed on the Redmi and its hash verified. The app UI transitioned active → pending disable → active and enabled the existing fallback. This build has not had a separate overnight or actual call trial. [Companion fallback validation](docs/BACKGROUND-RECOVERY.md)

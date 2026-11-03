@@ -25,7 +25,22 @@ with zipfile.ZipFile(io.BytesIO(binary)) as z:
     assert not any(n.endswith(('.jks','.keystore','.password')) or n.startswith('private/') for n in z.namelist())
     for p in (root/'assets/runtime').glob('*'):
         if p.is_file():
-            assert z.read('assets/runtime/'+p.name).replace(b'\r\n',b'\n')==p.read_bytes().replace(b'\r\n',b'\n'),'Packaged runtime differs: '+p.name
+            actual=z.read('assets/runtime/'+p.name);expected=p.read_bytes()
+            if p.suffix in {'.sh','.py'}:actual=actual.replace(b'\r\n',b'\n');expected=expected.replace(b'\r\n',b'\n')
+            assert actual==expected,'Packaged runtime differs: '+p.name
+    for name in ('suite-fallback.sh','suite-fallback-config.sh'):
+        assert 'assets/runtime/'+name in z.namelist()
+    compat={n for n in z.namelist() if n.startswith('assets/compat/') and not n.endswith('/')}
+    assert compat=={'assets/compat/redmi-wifi-module.zip','assets/compat/redmi-wifi-control.sh'}
+    for name in compat:assert z.read(name)==(root/name).read_bytes(),name
+    payload=z.read('assets/compat/redmi-wifi-module.zip')
+    assert hashlib.sha256(payload).hexdigest()=='2e6c42e2c62807ba47ebacd4d0ac700d1f2a7d72cb46bb755a2d3c91fd0d4d80'
+    with zipfile.ZipFile(io.BytesIO(payload)) as mod:
+        overlay='system/product/overlay/ZZInterlinkWifiAwake.apk'
+        assert sorted(mod.namelist())==sorted(['module.prop','customize.sh',overlay])
+        assert hashlib.sha256(mod.read(overlay)).hexdigest()=='a46d25a9f2641e9e3e1e2aa480ea07c55d98a9966b8eba9b18d1b3483c19f5d0'
+        for name in ('module.prop','customize.sh'):
+            assert mod.read(name)==(root/'tools/redmi-wifi'/name).read_bytes(),name
     native=root/'third_party/upstream-native.json'
     if native.exists():
         for name,sha in json.loads(native.read_text())['libraries'].items():

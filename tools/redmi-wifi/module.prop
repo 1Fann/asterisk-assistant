@@ -1,0 +1,6 @@
+id=interlink_wifi_awake
+name=Redmi home Wi-Fi compatibility
+version=1.0
+versionCode=1
+author=Local device maintenance
+description=Keeps Wi-Fi suspend optimizations off on this Android 13 Redmi Note 10 Pro used as a powered home server.

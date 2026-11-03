@@ -7,7 +7,7 @@ for candidate in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap
 done
 [ -n "$BB" ] || { echo busybox_missing; exit 20; }
 addresses=$(ip -6 -o addr show dev wlan0 scope global 2>/dev/null | "$BB" awk '
- /(^|[[:space:]])(temporary|tentative|deprecated|dadfailed)([[:space:]]|$)/ {next}
+ /(^|[[:space:]])(temporary|secondary|tentative|deprecated|dadfailed)([[:space:]]|$)/ {next}
  /preferred_lft 0sec/ {next}
  $3=="inet6" {split($4,a,"/");if(a[1] ~ /^[23][0-9a-fA-F]*:/)print a[1]}
 ' | "$BB" sort -u)
@@ -16,4 +16,6 @@ if [ -n "$previous" ] && printf '%s\n' "$addresses" | "$BB" grep -qxF "$previous
  printf '%s\n' "$previous"
 elif [ "$(printf '%s\n' "$addresses" | "$BB" grep -c :)" = 1 ]; then
  printf '%s\n' "$addresses"
+elif [ "${1:-}" = route-source ] && [ -n "$addresses" ]; then
+ printf '%s\n' ambiguous
 fi

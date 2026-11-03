@@ -45,13 +45,19 @@ try {
     $runtimeStage=Join-Path $assetStage 'assets\runtime'
     New-Item -ItemType Directory -Force -Path $runtimeStage | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'assets\runtime') -File | Where-Object {$_.Extension -in '.sh','.py','.whl'} | Copy-Item -Destination $runtimeStage
+    $compatStage=Join-Path $assetStage 'assets\compat'
+    New-Item -ItemType Directory -Force -Path $compatStage | Out-Null
+    foreach($name in @('redmi-wifi-module.zip','redmi-wifi-control.sh')){
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot ('assets\compat\'+$name)) -Destination $compatStage
+    }
+    if((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $compatStage 'redmi-wifi-module.zip')).Hash.ToLowerInvariant() -ne '2e6c42e2c62807ba47ebacd4d0ac700d1f2a7d72cb46bb755a2d3c91fd0d4d80'){throw 'Redmi module payload digest mismatch'}
     & (Join-Path $javaBin 'jar.exe') -uf (Join-Path $output 'unsigned.apk') -C $assetStage assets
     if($LASTEXITCODE){throw 'Runtime asset packaging failed'}
     & (Join-Path $buildTools 'zipalign.exe') -f 4 (Join-Path $output 'unsigned.apk') (Join-Path $output 'aligned.apk')
     if($LASTEXITCODE){throw 'APK alignment failed'}
-    & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias asterisk-manager --ks-pass env:ASTERISK_SIGNING_PASSWORD --key-pass env:ASTERISK_SIGNING_PASSWORD --out (Join-Path $output 'Asterisk-Assistant-1.2.7.apk') (Join-Path $output 'aligned.apk')
+    & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias asterisk-manager --ks-pass env:ASTERISK_SIGNING_PASSWORD --key-pass env:ASTERISK_SIGNING_PASSWORD --out (Join-Path $output 'Asterisk-Assistant-1.2.9.apk') (Join-Path $output 'aligned.apk')
     if($LASTEXITCODE){throw 'APK signing failed'}
-    & (Join-Path $buildTools 'apksigner.bat') verify (Join-Path $output 'Asterisk-Assistant-1.2.7.apk')
+    & (Join-Path $buildTools 'apksigner.bat') verify (Join-Path $output 'Asterisk-Assistant-1.2.9.apk')
     if($LASTEXITCODE){throw 'APK verification failed'}
-    & (Join-Path $buildTools 'aapt2.exe') dump permissions (Join-Path $output 'Asterisk-Assistant-1.2.7.apk')
+    & (Join-Path $buildTools 'aapt2.exe') dump permissions (Join-Path $output 'Asterisk-Assistant-1.2.9.apk')
 }finally{Remove-Item Env:ASTERISK_SIGNING_PASSWORD -ErrorAction SilentlyContinue}

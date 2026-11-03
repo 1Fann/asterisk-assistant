@@ -66,6 +66,7 @@ with tempfile.TemporaryDirectory(prefix="recovery-control-", dir=output) as temp
            "sha256sum) shift; exec " + python + " " + helper + " --sha \"$@\";;\n"
            "awk|grep) task=$1; shift; exec \"$task\" \"$@\";;\nesac\nexit 20\n")
     script(base / "bin/cmd", "printf 'package:com.fann.asterisk uid:10001\\n'\n")
+    script(base / "bin/dumpsys", 'printf " mCallState=%s\\n" "${CALL_STATE:-0}"\n')
     script(base / "bin/ip", "[ \"${NO_WIFI:-0}\" = 1 ] || printf '1: wlan0 inet 192.0.2.1/24 scope global wlan0\\n'\n")
     script(base / "bin/chmod", ":\n")
     script(base / "bin/chown", ":\n")
@@ -73,7 +74,8 @@ with tempfile.TemporaryDirectory(prefix="recovery-control-", dir=output) as temp
     script(base / "bin/sleep", "exec " + python + " " + helper + " --sleep \"$@\"\n")
     script(base / "ipv6.sh", "printf '2001:db8::1\\n'\n")
     script(base / "supervisor.sh", ":\n")
-    script(base / "enter.sh", "if [ \"$1\" = /usr/bin/python3 ]; then\n"
+    script(base / "enter.sh", "if [ \"$1\" = /usr/sbin/asterisk ]; then printf '%s active calls\\n' \"${PBX_CALLS:-0}\"; exit 0; fi\n"
+           "if [ \"$1\" = /usr/bin/python3 ]; then\n"
            " printf 'network\\n' >> \"$TEST_BASE/events\"\n"
            " [ \"${STOP_DURING_NETWORK:-0}\" != 1 ] || touch \"$TEST_BASE/disabled\"\n"
            " [ \"${FAIL_NETWORK:-0}\" != 1 ] || exit 1\n"
@@ -85,6 +87,12 @@ with tempfile.TemporaryDirectory(prefix="recovery-control-", dir=output) as temp
     source = (repo / "assets/runtime/control.sh").read_text()
     source = re.sub(r"BB=\nfor candidate.*?\[ -n \"\$BB\" \] \|\| \{ echo busybox_missing; exit 20; \}", "BB=" + shlex.quote(posix(bb)), source, count=1, flags=re.S)
     source = source.replace("BASE=/data/adb/asterisk-app", "BASE=" + shlex.quote(posix(base))).replace("/system/bin/sh", shlex.quote(posix(shell))).replace("/proc/", posix(base / "proc") + "/")
+    # Exercise production stop control without signaling any real process.
+    source = source.replace("kill -TERM \"$PBX_PID\"", """
+      printf 'term\\n' >>"$TEST_BASE/events"
+      rm -f "$TEST_BASE/proc/99999999/cmdline"
+      if [ "${STOP_AT_TERM:-0}" = 1 ]; then touch "$TEST_BASE/disabled"; fi
+    """)
     (base / "control.sh").write_text(source, encoding="utf-8", newline="\n")
     (base / "control.sh").chmod(0o700)
     (base / "network-cache.sh").write_bytes((repo / "assets/runtime/network-cache.sh").read_bytes())
@@ -132,4 +140,27 @@ with tempfile.TemporaryDirectory(prefix="recovery-control-", dir=output) as temp
     assert (base / "events").read_text().splitlines().count("engine") == 1
     reset(); run("persistent lock contention stops after twenty waits", extra={"LOCK_BUSY_ATTEMPTS": "99", "FAST_LOCK_TEST": "1"})
     assert (base / "lock-attempts").read_text().strip() == "21"
+    def live():
+        reset()
+        (rootfs / "run/asterisk/asterisk.pid").write_text("99999999\n")
+        (base / "proc/99999999/root").write_text(posix(rootfs) + "\n")
+        (base / "proc/99999999/cmdline").write_bytes(b"/usr/sbin/asterisk\0-f\0-C\0/etc/asterisk/asterisk.conf\0")
+
+    for action in ("auto-restart", "restart"):
+        live(); run(action + " performs one serialized stop and launch", action, True, True)
+        assert (base / "events").read_text().splitlines().count("term") == 1 and not (base / "disabled").exists()
+        live(); (base / "disabled").touch()
+        run(action + " honors manual stop already recorded", action)
+        assert (base / "disabled").exists() and "term" not in (base / "events").read_text().splitlines()
+        live(); run(action + " honors manual stop during shutdown", action, extra={"STOP_AT_TERM":"1"})
+        assert (base / "disabled").exists()
+    for name,value in (("CALL_STATE","2"),("CALL_STATE","unknown"),("PBX_CALLS","1"),("PBX_CALLS","unknown"),("NO_WIFI","1")):
+        live(); run(name + "=" + value + " prevents automatic disruption", "auto-restart", extra={name:value})
+        assert "term" not in (base / "events").read_text().splitlines() and not (base / "disabled").exists()
+    live(); (base / "background-authorized").unlink()
+    run("automatic restart requires explicit background authorization", "auto-restart")
+    assert "term" not in (base / "events").read_text().splitlines()
+    live(); run("failed automatic re-launch preserves future recovery", "auto-restart", extra={"FAIL_NETWORK":"1"})
+    assert not (base / "disabled").exists()
+    run("next recovery succeeds after transient restart failure", success=True, engine=True)
     print(f"PASS: {total} isolated control recovery cases (flock invocation is mocked, not timing-tested)")

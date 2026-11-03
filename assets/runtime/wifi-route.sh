@@ -30,22 +30,59 @@ case "${1:-loop}" in
  check) ;;
  *) exit 2;;
 esac
-[ -f "$BASE/wifi-compat.enabled" ] && [ ! -f "$BASE/disabled" ] || exit 0
-"$BB" grep -q '"enabled"[[:space:]]*:[[:space:]]*true' "$BASE/rootfs/etc/asterisk-app/public-ipv6.json" || exit 0
-[ "$("$BASE/control.sh" state)" = running ] || exit 0
-ip -6 -o addr show dev wlan0 scope global | "$BB" grep -q 'inet6 [23]' || exit 0
-routes=$(ip -6 route show table wlan0 default 2>/dev/null) || routes=$(ip -6 route show table all 2>/dev/null) || exit 0
-# A permanent default or one with more than two minutes remaining needs no traffic.
-if printf '%s\n' "$routes" | "$BB" awk '
- $1=="default" && / dev wlan0( |$)/ && !/ linkdown( |$)/ {
-   expiry=-1
-   for(i=1;i<NF;i++)if($i=="expires")expiry=$(i+1)+0
-   if(expiry<0 || expiry>120)healthy=1
- }
- END {exit !healthy}'; then exit 0; fi
-source=$(ip -6 -o addr show dev wlan0 scope link | "$BB" awk '$3=="inet6" && !/ tentative| dadfailed| deprecated/ {split($4,a,"/");print a[1];exit}')
-[ -n "$source" ] && IFS= read -r mac </sys/class/net/wlan0/address || exit 0
-# The kernel installs the gateway and lifetime supplied by the router's RA.
-if "$BASE/enter.sh" /usr/bin/python3 /opt/asterisk-app/wifi-rs.py "$source" "$mac"; then
- date +%s > "$BASE/wifi-route.last-rs"
+enabled() {
+ [ -f "$BASE/wifi-compat.enabled" ] && [ ! -f "$BASE/disabled" ] &&
+ "$BB" grep -q '"enabled"[[:space:]]*:[[:space:]]*true' "$BASE/rootfs/etc/asterisk-app/public-ipv6.json" &&
+ [ "$("$BASE/control.sh" state)" = running ]
+}
+record() {
+ local current
+ current=
+ [ ! -r "$BASE/wifi-route.status" ] || IFS= read -r current <"$BASE/wifi-route.status"
+ [ "$current" = "$1" ] || { printf '%s\n' "$1" >"$BASE/wifi-route.status.new.$$" && mv -f "$BASE/wifi-route.status.new.$$" "$BASE/wifi-route.status"; }
+}
+check_route() {
+ local address lookup table defaults
+ address=$("$BASE/ipv6.sh" route-source) || return 2
+ [ "$address" != ambiguous ] || return 3
+ [ -n "$address" ] || return 1
+ # RTM_GETROUTE is a local kernel lookup; no packet is sent to this address.
+ lookup=$(ip -6 route get 2606:4700:4700::1111 from "$address" $UID_SELECTOR 2>/dev/null) || return 1
+ lookup=${lookup%%'
+'*}
+ table=$(printf '%s\n' "$lookup" | "$BB" awk '{for(i=1;i<NF;i++)if($i=="table"){print $(i+1);exit}}')
+ case "$table" in *[!a-zA-Z0-9_.-]*) return 2;; esac
+ defaults=$(ip -6 route show table "${table:-main}" default 2>/dev/null) || return 2
+ printf '%s\n%s\n' "$lookup" "$defaults" | "$BB" chroot "$BASE/rootfs" /usr/bin/python3 -IB /opt/asterisk-app/wifi-rs.py route-check "$address"
+}
+enabled || exit 0
+UID_SELECTOR=
+if ip -6 route help 2>&1 | "$BB" grep -qw uid; then
+ engine_uid=$("$BB" awk -F: '$1=="asterisk" {print $3; exit}' "$BASE/rootfs/etc/passwd")
+ case "$engine_uid" in ''|*[!0-9]*) record unknown-source; exit 0;; esac
+ UID_SELECTOR="uid $engine_uid"
 fi
+check_route; result=$?
+case "$result" in
+ 0) record local-route-ready; exit 0;;
+ 1) ;;
+ 3) record ambiguous-source; exit 0;;
+ *) record route-check-unavailable; exit 0;;
+esac
+source=$(ip -6 -o addr show dev wlan0 scope link | "$BB" awk '$3=="inet6" && !/ tentative| dadfailed| deprecated/ {split($4,a,"/");print a[1];exit}')
+[ -n "$source" ] && IFS= read -r mac </sys/class/net/wlan0/address || { record no-link-local; exit 0; }
+enabled || exit 0
+# The kernel installs the gateway and lifetime supplied by the router's RA.
+"$BASE/enter.sh" /usr/bin/python3 /opt/asterisk-app/wifi-rs.py "$source" "$mac" || { record solicitation-failed; exit 0; }
+date +%s > "$BASE/wifi-route.last-rs"
+record awaiting-kernel-route
+for delay in 1 2 3; do
+ sleep "$delay" 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+ enabled || exit 0
+ if check_route; then
+  date +%s > "$BASE/wifi-route.last-verified-rs"
+  record local-route-ready
+  exit 0
+ fi
+done
+record solicitation-unconfirmed

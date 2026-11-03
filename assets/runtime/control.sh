@@ -10,13 +10,13 @@ R=$BASE/rootfs
 # Serialize native launch/stop. STOP publishes its intent before waiting so an
 # automatic recovery still preparing its network cannot undo a manual stop.
 case "${1:-status}" in
- start|recover|stop)
+ start|recover|stop|restart|auto-restart)
   [ "$1" != stop ] || touch "$BASE/disabled"
   # mksh closes numbered descriptors on exec; BusyBox ash retains our lock FD.
   exec "$BB" ash "$0" --acquire "$1"
   ;;
  --acquire)
-  case "${2:-}" in start|recover|stop) ;; *) exit 2;; esac
+  case "${2:-}" in start|recover|stop|restart|auto-restart) ;; *) exit 2;; esac
   exec 9>"$BASE/start-stop.lock"
   # Magisk's flock has no -w. Its timeout helper can retain inherited locks, so
   # retry only nonblocking acquisition; sleeping descendants cannot retain FD 9.
@@ -40,6 +40,22 @@ running() {
   [ "$(readlink /proc/$PBX_PID/root 2>/dev/null)" = "$R" ] || return 1
   tr '\000' ' ' < "/proc/$PBX_PID/cmdline" | "$BB" grep -q '/usr/sbin/asterisk -f -C /etc/asterisk/asterisk.conf'
 }
+stop_engine() {
+  if running; then
+    kill -TERM "$PBX_PID"
+    n=0
+    while running && [ "$n" -lt 15 ]; do sleep 1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; n=$((n+1)); done
+    if running; then echo stop_timeout; return 1; fi
+  fi
+}
+calls_idle() {
+  registry=$("$BB" timeout 8 dumpsys telephony.registry 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-) || return 1
+  printf '%s\n' "$registry" | "$BB" awk '/^[[:space:]]*mCallState=/{seen=1;if($0!~/^[[:space:]]*mCallState=0[[:space:]]*$/)busy=1} END{exit !(seen&&!busy)}' || return 1
+  if running; then
+    channels=$("$BB" timeout 8 "$BASE/control.sh" cli core show channels count 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-) || return 1
+    printf '%s\n' "$channels" | "$BB" awk '/^[0-9]+ active calls[[:space:]]*$/{seen=1;if($1!=0)busy=1} END{exit !(seen&&!busy)}' || return 1
+  fi
+}
 case "${1:-status}" in
   ipv6) exec /system/bin/sh "$BASE/ipv6.sh";;
   network-state)
@@ -49,13 +65,20 @@ case "${1:-status}" in
     mv "$R/etc/asterisk-app/lan-ipv6.tmp" "$R/etc/asterisk-app/lan-ipv6"
     ;;
   state) if running; then echo running; else echo stopped; fi;;
-  --locked-start|--locked-recover)
-    AUTOMATIC=0; [ "$1" != --locked-recover ] || AUTOMATIC=1
+  --locked-start|--locked-recover|--locked-restart|--locked-auto-restart)
+    AUTOMATIC=0; case "$1" in --locked-recover|--locked-auto-restart) AUTOMATIC=1;; esac
     if [ "$AUTOMATIC" = 1 ]; then automatic_allowed || { echo recovery_paused; exit 1; }; fi
     [ -f "$BASE/installed" ] || { echo not_installed; exit 1; }
     REAL_UID=$(cmd package list packages -U com.fann.asterisk 2>/dev/null | "$BB" awk '$1=="package:com.fann.asterisk" {split($2,a,":"); print a[2]}')
     [ -n "$REAL_UID" ] && [ "$REAL_UID" = "$(cat "$R/etc/asterisk-app/android-uid")" ] || { echo uid_mismatch; exit 1; }
-    if [ "$AUTOMATIC" = 0 ]; then rm -f "$BASE/disabled"; fi
+    if [ "$1" = --locked-start ]; then rm -f "$BASE/disabled"; fi
+    if [ "$1" = --locked-auto-restart ] || [ "$1" = --locked-restart ]; then
+      [ ! -f "$BASE/disabled" ] || { echo recovery_paused; exit 1; }
+      [ -n "$(ip -4 -o addr show wlan0)" ] || { echo wifi_not_ready; exit 1; }
+      calls_idle || { echo call_active_or_unknown; exit 1; }
+      if [ "$AUTOMATIC" = 1 ]; then automatic_allowed || { echo recovery_paused; exit 1; }; fi
+      stop_engine
+    fi
     if ! running; then
       IP=$(ip -4 -o addr show wlan0 | "$BB" awk '{split($4,a,"/"); print a[1]; exit}')
       [ -n "$IP" ] || { echo wifi_not_ready; exit 1; }
@@ -64,6 +87,7 @@ case "${1:-status}" in
       . "$BASE/network-cache.sh"
       prepare_network
       if [ "$AUTOMATIC" = 1 ]; then automatic_allowed || { echo recovery_paused; exit 1; }; fi
+      [ ! -f "$BASE/disabled" ] || { echo recovery_paused; exit 1; }
       "$BB" setsid "$BASE/enter.sh" /bin/sh /opt/asterisk-app/run.sh </dev/null >"$BASE/console.log" 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
       # Preserve the three-second launch allowance, returning as soon as its
       # verified process exists. HealthMain still checks actual SIP responses.
@@ -81,15 +105,9 @@ case "${1:-status}" in
     ;;
   --locked-stop)
     touch "$BASE/disabled"
-    if running; then
-      kill -TERM "$PBX_PID"
-      n=0
-      while running && [ "$n" -lt 15 ]; do sleep 1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; n=$((n+1)); done
-      if running; then echo stop_timeout; exit 1; fi
-    fi
+    stop_engine
     echo stopped
     ;;
-  restart) "$BASE/control.sh" stop; "$BASE/control.sh" start;;
   cli) shift; exec "$BASE/enter.sh" /usr/sbin/asterisk -rx "$*";;
   api)
     shift

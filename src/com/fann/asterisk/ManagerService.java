@@ -53,6 +53,20 @@ public class ManagerService extends Service {
   final boolean healthEnabled=intent!=null&&intent.getBooleanExtra("healthEnabled",false);
   final String healthMinutes=intent==null?null:intent.getStringExtra("healthMinutes");
   if(task.equals("WAKE")){awake(getSharedPreferences("app",0).getBoolean("awake",false));worker.submit(()->{try{RootBridge.syncMonitorWake(this);}catch(Exception e){report("唤醒设置未同步，请重试");}});return START_STICKY;}
+  if(task.equals("RECOVER")){
+   worker.submit(()->{
+    try{
+     String base=RootBridge.BASE;
+     if(!RootBridge.run("test -f "+base+"/health-enabled && test -f "+base+"/background-authorized && test ! -f "+base+"/disabled && echo yes || true",null,5).equals("yes"))return;
+     RootBridge.ensureStaged(this);
+     if(!HealthMain.idle())return;
+     // recover rechecks authorization under the start/stop lock and preserves a new STOP.
+     RootBridge.run(base+"/control.sh recover",null,40);
+    }catch(Exception e){message="自动恢复未完成，下轮重新检查";}
+    finally{try{syncAfterRecovery(startId);}catch(Exception ignored){message="运行锁状态同步未完成，请刷新检查";}}
+   });
+   return START_STICKY;
+  }
   if(task.equals("SYNC_RUNTIME")){
    // The verified root monitor already restored the engine. This request may only
    // synchronize existing locks; a delayed request must never clear manual STOP.
